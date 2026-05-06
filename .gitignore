@@ -1,0 +1,14 @@
+.env
+CLAUDE.local.md
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+logs/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+Nazir_PRD_v2.md
+Nazir_PRD.md
