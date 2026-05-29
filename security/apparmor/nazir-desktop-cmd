@@ -1,0 +1,67 @@
+# AppArmor profile for Nazir's DesktopCommanderMCP process
+#
+# Scoped to the desktop-commander node process ONLY.
+# Does NOT use /usr/bin/node (too broad — would constrain every node process).
+# Attaches via cx transition from the parent node binary.
+#
+# Runtime facts (confirmed 2026-05-29):
+#   node binary:   /home/ahmeed/.local/bin/node  (v20.12.2)
+#   dcm entry:     /home/ahmeed/.local/lib/node_modules/@wonderwhy-er/desktop-commander/dist/index.js
+#   project root:  /home/ahmeed/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/
+#
+# Install:
+#   sudo cp security/apparmor/nazir-desktop-cmd /etc/apparmor.d/
+#   sudo apparmor_parser -r /etc/apparmor.d/nazir-desktop-cmd
+#   sudo aa-enforce /etc/apparmor.d/nazir-desktop-cmd
+#
+# Verify:
+#   sudo aa-status | grep nazir
+
+#include <tunables/global>
+
+profile nazir-desktop-cmd
+    /home/ahmeed/.local/bin/node
+    flags=(attach_disconnected,mediate_deleted)
+{
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # --- Node runtime ---
+  /home/ahmeed/.local/bin/node                          r,
+  /home/ahmeed/.local/lib/node_modules/**               r,
+  /home/ahmeed/.local/lib/node_modules/**               ix,
+  /home/ahmeed/.local/bin/                              r,
+
+  # Node needs these for module resolution
+  /proc/*/stat                                          r,
+  /proc/self/maps                                       r,
+  /proc/self/exe                                        r,
+  /sys/devices/system/cpu/online                        r,
+  /etc/ld.so.cache                                      r,
+  /lib/x86_64-linux-gnu/**                              mr,
+  /usr/lib/x86_64-linux-gnu/**                          mr,
+
+  # --- Project root: full read/write ---
+  /home/ahmeed/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/   r,
+  /home/ahmeed/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/** rw,
+
+  # Temp files (heartbeat, probe)
+  /tmp/nazir-*                                          rw,
+
+  # MCP stdio transport
+  network unix stream,
+  network inet stream,
+  network inet6 stream,
+
+  # --- Hard denies (explicit, highest priority) ---
+  deny /etc/**                                          w,
+  deny /usr/**                                          w,
+  deny /root/**                                         rw,
+  deny /home/ahmeed/.ssh/**                             rw,
+  deny /home/ahmeed/.gnupg/**                           rw,
+  deny /home/ahmeed/.bashrc                             w,
+  deny /home/ahmeed/.profile                            w,
+  deny /home/ahmeed/.local/bin/**                       w,
+  deny /home/ahmeed/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/.env  rw,
+  deny /home/ahmeed/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/.git/** w,
+}
