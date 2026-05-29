@@ -1,5 +1,5 @@
 """
-Nazir custom MCP server — Phase 2.
+Nazir custom MCP server — Phase 2 + 5.
 
 Tools exposed to Claude Code and Gemini CLI:
   Shell:   safe_run_command, ping_heartbeat
@@ -7,18 +7,10 @@ Tools exposed to Claude Code and Gemini CLI:
   Git:     git_status, git_diff, git_log, git_commit, git_add, git_stash, git_stash_pop
   Search:  search_in_files, find_files
   Code:    run_python, run_tests, lint_file
+  Memory:  wrapup, catchup, update_claude_md   ← Phase 5
 
 All file/path operations are validated against NAZIR_PROJECT_ROOT.
 All shell commands are checked against the blocklist.
-
-Run:
-    python3 mcp_server/server.py
-
-Register with Claude Code:
-    claude mcp add nazir-tools -- python3 /path/to/mcp_server/server.py
-
-Register with Gemini CLI:
-    Added to ~/.gemini/settings.json mcpServers automatically by Phase 2 setup.
 """
 import sys
 from pathlib import Path
@@ -176,6 +168,91 @@ def test(path: str = ".") -> str:
 def lint(path: str) -> str:
     """Run ruff linter on a Python file. Returns issues or 'No lint issues found'."""
     return lint_file(path)
+
+
+# ── Memory / Context Management (Phase 5) ────────────────────────────────────
+
+@mcp.tool()
+def wrapup(
+    task: str,
+    completed: list[str] = None,
+    pending: list[str] = None,
+    decisions: list[str] = None,
+    files_modified: list[str] = None,
+    blockers: list[str] = None,
+) -> str:
+    """
+    Save a context checkpoint to memory/last_checkpoint.md.
+    Call this at 65% context usage or before ending a session.
+    Automatically includes active Gemini session UUIDs.
+
+    Args:
+        task:           What you are currently working on.
+        completed:      Steps completed this session.
+        pending:        Steps still to do (agent resumes here).
+        decisions:      Key decisions made this session.
+        files_modified: Files changed this session.
+        blockers:       Current blockers or open questions.
+    """
+    from memory.wrapup import write_checkpoint
+    from orchestrator.gemini_runner import ACTIVE_SESSIONS
+    archive = write_checkpoint(
+        task=task,
+        completed=completed or [],
+        pending=pending or [],
+        decisions=decisions or [],
+        files_modified=files_modified or [],
+        blockers=blockers or [],
+        gemini_sessions=dict(ACTIVE_SESSIONS),
+    )
+    return f"Checkpoint saved → {archive}"
+
+
+@mcp.tool()
+def catchup() -> str:
+    """
+    Restore context from memory/last_checkpoint.md at the start of a session.
+    Loads Gemini session UUIDs and returns the full checkpoint text.
+    Call this first thing every new session.
+    """
+    from memory.catchup import restore, summary
+    context = restore()
+    s = summary()
+    header = (
+        f"[Nazir catchup] Sessions restored: {s['sessions_count']} | "
+        f"Checkpoint age: {s['checkpoint_age_seconds']}s\n\n"
+    )
+    return header + context
+
+
+@mcp.tool()
+def update_claude_md(
+    decision: str = None,
+    architecture: str = None,
+    known_issues: list[str] = None,
+) -> str:
+    """
+    Update CLAUDE.md sections after completing a task.
+    Call this at the end of every task to keep the agent context file current.
+
+    Args:
+        decision:       One-line summary of what was done/decided (prepended to Recent Decisions).
+        architecture:   Updated description of current architecture (replaces section).
+        known_issues:   Current list of known issues/tech debt (replaces section).
+    """
+    from memory.updater import full_update
+    from orchestrator.gemini_runner import ACTIVE_SESSIONS
+    full_update(
+        decision=decision,
+        architecture=architecture,
+        known_issues=known_issues,
+        gemini_sessions=dict(ACTIVE_SESSIONS) if ACTIVE_SESSIONS else None,
+    )
+    updated = []
+    if decision:      updated.append("Recent Decisions")
+    if architecture:  updated.append("Current Architecture")
+    if known_issues is not None: updated.append("Known Issues")
+    return f"CLAUDE.md updated: {', '.join(updated) or 'no changes'}"
 
 
 if __name__ == "__main__":

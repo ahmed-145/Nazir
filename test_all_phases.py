@@ -598,3 +598,68 @@ print(f"\n  {color}{BO}Score: {score:.0f}%  ({n_pass}/{total - n_skip} non-skipp
 print(f"{'═'*62}\n")
 
 sys.exit(0 if n_fail == 0 else 1)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 5 — Context Management
+# ═══════════════════════════════════════════════════════════════════════════════
+header("Phase 5 — Context Management")
+
+try:
+    from memory.wrapup import write_checkpoint, quick_wrapup
+    from memory.catchup import restore, summary
+    from memory.updater import full_update, prepend_decision
+    ok("Phase 5 modules import OK")
+except ImportError as e:
+    fail("Phase 5 module import failed", str(e))
+
+# wrapup creates checkpoint
+try:
+    archive = write_checkpoint("test task", ["done"], ["pending"], [], [], [])
+    if Path(archive).exists():
+        ok("write_checkpoint: archive created", archive[-40:])
+    else:
+        fail("write_checkpoint: archive not found")
+except Exception as e:
+    fail("write_checkpoint failed", str(e)[:80])
+
+# last_checkpoint.md exists
+cp = PROJECT_ROOT / "memory" / "last_checkpoint.md"
+if cp.exists() and cp.stat().st_size > 0:
+    ok("last_checkpoint.md: exists and non-empty", f"{cp.stat().st_size} bytes")
+else:
+    fail("last_checkpoint.md missing")
+
+# checkpoints archive dir has files
+ckpts = list((PROJECT_ROOT / "memory" / "checkpoints").glob("*.md"))
+ok(f"checkpoints archive: {len(ckpts)} file(s)")
+
+# catchup round-trip
+try:
+    ctx = restore()
+    s = summary()
+    if s["has_checkpoint"] and "sessions_count" in s:
+        ok("catchup round-trip: checkpoint + sessions restored", f"age={s['checkpoint_age_seconds']}s")
+    else:
+        fail("catchup round-trip failed", str(s))
+except Exception as e:
+    fail("catchup failed", str(e)[:80])
+
+# hooks configured
+hooks_file = PROJECT_ROOT / ".claude" / "settings.json"
+if hooks_file.exists():
+    data = json.loads(hooks_file.read_text())
+    h = data.get("hooks", {})
+    if h.get("PreCompact") and h.get("Stop"):
+        ok("Claude Code hooks: PreCompact + Stop configured")
+    else:
+        fail("hooks missing from .claude/settings.json")
+else:
+    fail(".claude/settings.json not found")
+
+# hook command works as subprocess
+r = run(["python3", str(PROJECT_ROOT / "memory" / "wrapup.py")], timeout=10)
+if r.returncode == 0 and "Checkpoint" in r.stdout:
+    ok("wrapup.py runs as hook command (subprocess)")
+else:
+    fail("wrapup.py hook command failed", r.stderr[:60])
