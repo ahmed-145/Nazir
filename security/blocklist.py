@@ -11,7 +11,7 @@ BLOCKED_PATTERNS = [
     "mkfs", "dd if=/dev/zero", "dd if=/dev/random",
     "> /dev/sda", "shred /dev",
     # Privilege escalation
-    "sudo rm", "sudo mkfs", "sudo dd", "sudo chmod -R 777 /",
+    "sudo ",  # block ALL sudo — agent never needs root
     "chmod -R 777 /",
     # Fork bomb
     ":(){:|:&};:",
