@@ -218,14 +218,17 @@ else:
     else:
         warn("~/.gemini/sessions/ not found — sessions may be stored differently on this version")
 
-    # 2.5 --resume with a known UUID (round-trip test)
-    # Use the latest session UUID we found, or skip
+    # 2.5 --resume round-trip test — use session_id from JSON output (v0.41.2+)
+    session_id_from_json = results.get("gemini_json_has_session_id", {}).get("value")
+    if session_id_from_json:
+        results["gemini_latest_session_uuid"] = session_id_from_json
+
     if results.get("gemini_latest_session_uuid"):
         uuid = results["gemini_latest_session_uuid"]
         rc, stdout, stderr = run(
             ["gemini", "--yolo", "--output-format", "json",
              "--resume", uuid, "-p", "Reply with only: RESUME_OK"],
-            timeout=30
+            timeout=90
         )
         passed = rc == 0 and "RESUME_OK" in stdout
         results["gemini_resume_works"] = {"rc": rc, "passed": passed, "uuid_used": uuid}
@@ -252,10 +255,10 @@ else:
     else:
         warn("Bad API key returned rc=0 (unexpected)", "may have used cached session")
 
-    # 2.7 --yolo flag (just confirm it doesn't error)
+    # 2.7 --yolo flag — needs 60s+ timeout (~8s init time confirmed)
     rc, stdout, stderr = run(
         ["gemini", "--yolo", "-p", "Reply with: YOLO_OK"],
-        timeout=30
+        timeout=90
     )
     results["gemini_yolo_flag"] = {"rc": rc, "passed": rc == 0 and "YOLO_OK" in stdout}
     if results["gemini_yolo_flag"]["passed"]:
@@ -263,10 +266,10 @@ else:
     else:
         fail("--yolo flag failed", f"rc={rc}")
 
-    # 2.8 Quota check via /stats (if supported)
+    # 2.8 Quota check via stats block in a minimal call
     rc, stdout, stderr = run(
-        ["gemini", "--output-format", "json", "-p", "/stats"],
-        timeout=20
+        ["gemini", "--yolo", "--output-format", "json", "-p", "hi"],
+        timeout=90
     )
     results["gemini_stats_command"] = {"rc": rc, "output_preview": stdout[:200]}
     if rc == 0 and stdout.strip():
@@ -449,8 +452,8 @@ else:
     test_file = PROBE_TMPDIR / "claude_probe_output.txt"
     rc, stdout, stderr = run(
         ["claude", "--dangerously-skip-permissions", "-p",
-         f"Write the string 'CLAUDE_PROBE_OK' to the file {test_file}. Do nothing else."],
-        timeout=60
+         f"Write the string 'CLAUDE_PROBE_OK' to the file {test_file}. Use the Write tool."],
+        timeout=90
     )
     file_written = test_file.exists() and "CLAUDE_PROBE_OK" in test_file.read_text() if test_file.exists() else False
     results["claude_headless_completes"] = {"rc": rc, "file_written": file_written}
@@ -596,7 +599,7 @@ lines = [
     f"| gemini --output-format json | {'✅' if results.get('gemini_json_output', {}).get('json_parse_ok') else '❌'} |",
     f"| JSON has sessionId (#14435) | {'✅ RESOLVED' if results.get('gemini_json_has_session_id', {}).get('found') else '❌ STILL OPEN'} |",
     f"| --resume works in headless | {'✅' if results.get('gemini_resume_works', {}).get('passed') else '⚠️ untested/failed'} |",
-    f"| Exit code 41 = auth fail | {'✅' if results.get('gemini_bad_key_exit_code') == 41 else f'⚠️ actual={results.get(\"gemini_bad_key_exit_code\")}'} |",
+    f"| Exit code 41 = auth fail | {'✅' if results.get('gemini_bad_key_exit_code') == 41 else '⚠️ actual=' + str(results.get('gemini_bad_key_exit_code'))} |",
     f"| Policy engine dir exists | {'✅' if results.get('gemini_policy_dir_exists') else '⚠️ not yet'} |",
     f"| settings.json contextFileName | {'✅' if results.get('gemini_contextFileName') == 'CLAUDE.md' else '⚠️ not set'} |",
     f"| Antigravity 2.0 CLI available | {'✅' if results.get('antigravity_cli_available') else '⚠️ not installed'} |",

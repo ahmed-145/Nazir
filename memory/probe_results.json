@@ -1,0 +1,183 @@
+{
+  "google_api_key_set": true,
+  "gemini_cli_available": true,
+  "gemini_cli_version": "0.41.2",
+  "antigravity_cli_available": true,
+  "antigravity_cli_version": "1.107.0\n15487b3041e65228cae24980a3f796c905ef582c\nx64",
+  "claude_cli_available": true,
+  "claude_cli_version": "2.1.156 (Claude Code)",
+  "gemini_tests_skipped": false,
+  "gemini_headless_basic": {
+    "rc": 0,
+    "passed": true
+  },
+  "gemini_json_output": {
+    "rc": 0,
+    "json_parse_ok": true,
+    "keys": [
+      "session_id",
+      "response",
+      "stats"
+    ],
+    "raw_preview": "{\n  \"session_id\": \"8022f7ac-f5a5-4242-b1fb-3d7d13c13969\",\n  \"response\": \"PROBE_OK\",\n  \"stats\": {\n    \"models\": {\n      \"gemini-3.1-flash-lite\": {\n        \"api\": {\n          \"totalRequests\": 1,\n          \"totalErrors\": 0,\n          \"totalLatencyMs\": 2258\n        },\n        \"tokens\": {\n          \"inpu"
+  },
+  "gemini_json_has_session_id": {
+    "found": true,
+    "value": "8022f7ac-f5a5-4242-b1fb-3d7d13c13969",
+    "all_keys": [
+      "session_id",
+      "response",
+      "stats"
+    ]
+  },
+  "gemini_sessions_dir_exists": false,
+  "gemini_sessions_dirs": [],
+  "gemini_latest_session_uuid": "8022f7ac-f5a5-4242-b1fb-3d7d13c13969",
+  "gemini_resume_works": {
+    "rc": 0,
+    "passed": true,
+    "uuid_used": "8022f7ac-f5a5-4242-b1fb-3d7d13c13969"
+  },
+  "gemini_bad_key_exit_code": -1,
+  "gemini_yolo_flag": {
+    "rc": 0,
+    "passed": true
+  },
+  "gemini_stats_command": {
+    "rc": 0,
+    "output_preview": "{\n  \"session_id\": \"6d89c6a4-3c6a-4be2-9d9e-619f0b703a27\",\n  \"response\": \"Hello! I'm Gemini, your CLI assistant. How can I help you with the **Nazir** project today?\\n\\nI see some task-related files in"
+  },
+  "gemini_stats_json": {
+    "session_id": "6d89c6a4-3c6a-4be2-9d9e-619f0b703a27",
+    "response": "Hello! I'm Gemini, your CLI assistant. How can I help you with the **Nazir** project today?\n\nI see some task-related files in the `memory/` directory. Would you like me to review the current status or start a new task?",
+    "stats": {
+      "models": {
+        "gemini-3.1-flash-lite": {
+          "api": {
+            "totalRequests": 1,
+            "totalErrors": 0,
+            "totalLatencyMs": 1532
+          },
+          "tokens": {
+            "input": 1045,
+            "prompt": 1045,
+            "candidates": 37,
+            "total": 1165,
+            "cached": 0,
+            "thoughts": 83,
+            "tool": 0
+          },
+          "roles": {
+            "utility_router": {
+              "totalRequests": 1,
+              "totalErrors": 0,
+              "totalLatencyMs": 1532,
+              "tokens": {
+                "input": 1045,
+                "prompt": 1045,
+                "candidates": 37,
+                "total": 1165,
+                "cached": 0,
+                "thoughts": 83,
+                "tool": 0
+              }
+            }
+          }
+        },
+        "gemini-3-flash-preview": {
+          "api": {
+            "totalRequests": 1,
+            "totalErrors": 0,
+            "totalLatencyMs": 6033
+          },
+          "tokens": {
+            "input": 1768,
+            "prompt": 9334,
+            "candidates": 56,
+            "total": 9930,
+            "cached": 7566,
+            "thoughts": 540,
+            "tool": 0
+          },
+          "roles": {
+            "main": {
+              "totalRequests": 1,
+              "totalErrors": 0,
+              "totalLatencyMs": 6033,
+              "tokens": {
+                "input": 1768,
+                "prompt": 9334,
+                "candidates": 56,
+                "total": 9930,
+                "cached": 7566,
+                "thoughts": 540,
+                "tool": 0
+              }
+            }
+          }
+        }
+      },
+      "tools": {
+        "totalCalls": 0,
+        "totalSuccess": 0,
+        "totalFail": 0,
+        "totalDurationMs": 0,
+        "totalDecisions": {
+          "accept": 0,
+          "reject": 0,
+          "modify": 0,
+          "auto_accept": 0
+        },
+        "byName": {}
+      },
+      "files": {
+        "totalLinesAdded": 0,
+        "totalLinesRemoved": 0
+      }
+    }
+  },
+  "gemini_policy_dir_exists": true,
+  "gemini_policy_files": [
+    "/home/ahmeed/.gemini/policies/safe-commands.toml"
+  ],
+  "gemini_policy_engine_toml_format_real": true,
+  "gemini_settings_file_exists": true,
+  "gemini_settings_keys": [
+    "ide",
+    "security",
+    "model",
+    "yolo",
+    "general",
+    "telemetry",
+    "contextFileName",
+    "ui"
+  ],
+  "gemini_contextFileName": "CLAUDE.md",
+  "antigravity_tests_skipped": false,
+  "antigravity_headless_basic": {
+    "rc": 0,
+    "passed": false
+  },
+  "antigravity_json_flag": null,
+  "antigravity_quota_check": {
+    "rc": 0,
+    "output": ""
+  },
+  "claude_headless_completes": {
+    "rc": 0,
+    "file_written": true
+  },
+  "claude_headless_20s_survival": {
+    "rc": 0,
+    "survived": true
+  },
+  "NAZIR_PROJECT_ROOT_set": false,
+  ".geminiignore_exists": true,
+  ".env_exists": true,
+  ".env_has_google_key": true,
+  "cgcone_available": false,
+  "agentlink_available": false,
+  "recommendation": "gemini_cli_only",
+  "probe_timestamp": "2026-05-29T18:07:12.090650",
+  "probe_version": "0.5.0"
+}
