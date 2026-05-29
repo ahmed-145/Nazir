@@ -410,8 +410,8 @@ decision = "block"
 ### 4.5 MCP Sync with cgcone / AgentLink
 
 ```bash
-# Option A: cgcone
-npm install -g cgcone
+# Option A: cgcone (real package name is @cgcone/cli)
+npm install -g @cgcone/cli
 cgcone install @wonderwhy-er/desktop-commander
 cgcone install $NAZIR_PROJECT_ROOT/mcp_server/server.py
 
