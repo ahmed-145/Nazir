@@ -6,49 +6,64 @@
 # Install:
 #   sudo cp security/apparmor/nazir-desktop-cmd /etc/apparmor.d/
 #   sudo apparmor_parser -r /etc/apparmor.d/nazir-desktop-cmd
-#   sudo aa-status | grep nazir   # should show "enforce" mode
+#   sudo aa-status | grep nazir
 
 profile nazir-desktop-cmd /home/ahmeed/.local/bin/node flags=(attach_disconnected,mediate_deleted) {
 
   #include <abstractions/base>
   #include <abstractions/nameservice>
 
-  # Node binary + installed packages
-  /home/ahmeed/.local/bin/node                r,
-  /home/ahmeed/.local/lib/node_modules/**     r,
-  /home/ahmeed/.local/lib/node_modules/**     ix,
-  /home/ahmeed/.local/bin/                    r,
+  # Node binary — mrix required for V8 snapshot remapping (RemapEmbeddedBuiltins)
+  /home/ahmeed/.local/bin/node               mrix,
+  /home/ahmeed/.local/lib/node_modules/**    r,
+  /home/ahmeed/.local/lib/node_modules/**    ix,
+  /home/ahmeed/.local/bin/                   r,
 
   # Shared libraries
-  /proc/*/stat                                r,
-  /proc/self/maps                             r,
-  /proc/self/exe                              r,
-  /sys/devices/system/cpu/online              r,
-  /etc/ld.so.cache                            r,
-  /etc/ssl/**                                 r,
-  /etc/ca-certificates/**                     r,
-  /etc/host.conf                              r,
-  /etc/hosts                                  r,
-  /etc/nsswitch.conf                          r,
-  /etc/resolv.conf                            r,
   /lib/x86_64-linux-gnu/**                   mr,
   /usr/lib/x86_64-linux-gnu/**               mr,
   /usr/lib/locale/**                          r,
   /usr/share/locale/**                        r,
+  /etc/ld.so.cache                            r,
+
+  # SSL / TLS (Node needs at startup)
+  /etc/ssl/**                                 r,
+  /etc/ca-certificates/**                     r,
+
+  # Network resolution
+  /etc/host.conf                              r,
+  /etc/hosts                                  r,
+  /etc/nsswitch.conf                          r,
+  /etc/resolv.conf                            r,
+
+  # /proc entries Node + DCM read
+  /proc/self/maps                             r,
+  /proc/self/exe                              r,
+  /proc/self/fd/                              r,
+  /proc/self/cgroup                           r,
+  /proc/version                               r,
+  /proc/*/stat                                r,
+  /proc/*/maps                                r,
+  /sys/devices/system/cpu/                    r,
+  /sys/devices/system/cpu/**                  r,
+
+  # DCM config dir (~/.claude-server-commander/) — outside project root, required
+  /home/ahmeed/.claude-server-commander/      rw,
+  /home/ahmeed/.claude-server-commander/**    rw,
 
   # Project root: read + write
   /home/ahmeed/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/   r,
   /home/ahmeed/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/** rw,
 
-  # Temp files
-  /tmp/nazir-*                                rw,
+  # Temp files (heartbeat etc.)
   /tmp/                                       r,
+  /tmp/nazir-*                                rw,
 
-  # stdio transport uses pipes — no network rules needed
-  # Deny sensitive paths
+  # ── Hard denies ──────────────────────────────────────────────────
   deny /etc/**                                w,
   deny /usr/**                                w,
   deny /root/**                               rw,
+  deny /proc/1/environ                        r,     # don't read init env
   deny /home/ahmeed/.ssh/**                   rw,
   deny /home/ahmeed/.gnupg/**                 rw,
   deny /home/ahmeed/.bashrc                   w,
