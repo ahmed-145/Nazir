@@ -38,7 +38,7 @@ def run_gemini(
     prompt: str,
     task_name: str = None,
     new_session: bool = False,
-    timeout: int = 90,
+    timeout: int = 180,
 ) -> str:
     """
     Run a prompt via Gemini CLI headless mode.
@@ -55,7 +55,10 @@ def run_gemini(
     Raises:
         RuntimeError: On auth failure (exit 41) or any other non-zero exit.
     """
-    cmd = ["gemini", "--yolo", "--output-format", "json"]
+    # --allowed-mcp-server-names none: disables all MCP servers in subprocess
+    # Cuts cold-start from ~58s to ~10s (MCP servers don't need to load for analysis/codegen)
+    cmd = ["gemini", "--yolo", "--output-format", "json",
+           "--allowed-mcp-server-names", "none"]
 
     if task_name and task_name in ACTIVE_SESSIONS and not new_session:
         cmd += ["--resume", ACTIVE_SESSIONS[task_name]]
@@ -116,18 +119,23 @@ def load_sessions(path: Path) -> None:
 def check_quota() -> dict:
     """
     Returns the stats block from a minimal Gemini call.
-    Contains per-model token counts — use to gauge quota pressure.
+    Reuses an existing session to avoid slow CLAUDE.md context reload.
+    Returns empty dict on timeout (quota unknown — treat as ok).
     """
-    result = subprocess.run(
-        ["gemini", "--yolo", "--output-format", "json", "-p", "hi"],
-        capture_output=True,
-        text=True,
-        timeout=90,
-        stdin=subprocess.DEVNULL,
-        env=_gemini_env(),
-    )
+    # Reuse any existing session to skip the ~8s CLAUDE.md load
+    cmd = ["gemini", "--yolo", "--output-format", "json",
+           "--allowed-mcp-server-names", "none"]
+    if ACTIVE_SESSIONS:
+        latest_uuid = next(iter(ACTIVE_SESSIONS.values()))
+        cmd += ["--resume", latest_uuid]
+    cmd += ["-p", "hi"]
+
     try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=60, stdin=subprocess.DEVNULL, env=_gemini_env(),
+        )
         data = json.loads(result.stdout)
         return data.get("stats", {})
-    except json.JSONDecodeError:
-        return {}
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
+        return {}  # quota unknown — caller treats as ok

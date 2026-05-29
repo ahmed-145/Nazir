@@ -1,19 +1,23 @@
 #include <tunables/global>
 
-# AppArmor profile for Nazir's DesktopCommanderMCP (stdio transport).
-# Attaches to the desktop-commander node process only.
+# AppArmor profile for Nazir's node-based tools (DCM + Gemini CLI).
+# Attaches to /home/ahmeed/.local/bin/node — shared by both DCM and Gemini CLI.
+#
+# Security model:
+#   - Hard deny: .ssh, .gnupg, .env, writes outside project scope
+#   - Software layer (validate_path.py + blocklist.py) enforces PROJECT_ROOT
+#   - AppArmor adds OS-level hard denies on top as defense-in-depth
 #
 # Install:
 #   sudo cp security/apparmor/nazir-desktop-cmd /etc/apparmor.d/
 #   sudo apparmor_parser -r /etc/apparmor.d/nazir-desktop-cmd
-#   sudo aa-status | grep nazir
 
 profile nazir-desktop-cmd /home/ahmeed/.local/bin/node flags=(attach_disconnected,mediate_deleted) {
 
   #include <abstractions/base>
   #include <abstractions/nameservice>
 
-  # Node binary — mrix required for V8 snapshot remapping (RemapEmbeddedBuiltins)
+  # Node binary — mrix required for V8 snapshot remapping
   /home/ahmeed/.local/bin/node               mrix,
   /home/ahmeed/.local/lib/node_modules/**    r,
   /home/ahmeed/.local/lib/node_modules/**    ix,
@@ -26,7 +30,7 @@ profile nazir-desktop-cmd /home/ahmeed/.local/bin/node flags=(attach_disconnecte
   /usr/share/locale/**                        r,
   /etc/ld.so.cache                            r,
 
-  # SSL / TLS (Node needs at startup)
+  # SSL / TLS
   /etc/ssl/**                                 r,
   /etc/ca-certificates/**                     r,
 
@@ -36,7 +40,7 @@ profile nazir-desktop-cmd /home/ahmeed/.local/bin/node flags=(attach_disconnecte
   /etc/nsswitch.conf                          r,
   /etc/resolv.conf                            r,
 
-  # /proc entries Node + DCM read
+  # /proc entries needed by Node + tools
   /proc/self/maps                             r,
   /proc/self/exe                              r,
   /proc/self/fd/                              r,
@@ -47,23 +51,32 @@ profile nazir-desktop-cmd /home/ahmeed/.local/bin/node flags=(attach_disconnecte
   /sys/devices/system/cpu/                    r,
   /sys/devices/system/cpu/**                  r,
 
-  # DCM config dir (~/.claude-server-commander/) — outside project root, required
+  # Gemini CLI config (same node binary — must be allowed)
+  /home/ahmeed/.gemini/                       rw,
+  /home/ahmeed/.gemini/**                     rw,
+
+  # DCM config dir
   /home/ahmeed/.claude-server-commander/      rw,
   /home/ahmeed/.claude-server-commander/**    rw,
+
+  # npm / node caches
+  /home/ahmeed/.npm/**                        r,
+  /home/ahmeed/.cache/                        r,
+  /home/ahmeed/.cache/**                      r,
 
   # Project root: read + write
   /home/ahmeed/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/   r,
   /home/ahmeed/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/** rw,
 
-  # Temp files (heartbeat etc.)
+  # Temp files
   /tmp/                                       r,
-  /tmp/nazir-*                                rw,
+  /tmp/**                                     rw,
 
-  # ── Hard denies ──────────────────────────────────────────────────
+  # ── Hard denies (highest priority — these cannot be bypassed) ───
   deny /etc/**                                w,
   deny /usr/**                                w,
   deny /root/**                               rw,
-  deny /proc/1/environ                        r,     # don't read init env
+  deny /proc/1/environ                        r,
   deny /home/ahmeed/.ssh/**                   rw,
   deny /home/ahmeed/.gnupg/**                 rw,
   deny /home/ahmeed/.bashrc                   w,

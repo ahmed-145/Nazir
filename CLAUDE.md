@@ -27,20 +27,37 @@ Delegate to Gemini CLI when:
 - Reading entire directory structures
 - Any task that would consume >20% of your context
 
-How to call Gemini CLI:
-```bash
-# For analysis:
-gemini --yolo --output-format json -p "@src/ @tests/ YOUR_QUERY"
+How to call (via orchestrator/gemini_runner.py):
+```python
+import sys; sys.path.insert(0, PROJECT_ROOT)
+from orchestrator.gemini_runner import run_gemini, save_sessions, load_sessions, ACTIVE_SESSIONS
+from pathlib import Path
 
-# For code generation (new session):
-gemini --yolo --output-format json -p "YOUR_GENERATION_PROMPT"
+# On session start — restore sessions
+load_sessions(Path("memory/gemini_sessions.json"))
 
-# For follow-up (resume session):
-gemini --yolo --resume SESSION_UUID --output-format json -p "YOUR_FOLLOWUP"
+# Bulk analysis (uses @dir/ Gemini file ingestion)
+result = run_gemini("@src/ @tests/ YOUR_QUERY", task_name="analysis")
+
+# Code generation (new session)
+result = run_gemini("YOUR_PROMPT", task_name="codegen", new_session=True)
+
+# Follow-up (auto-resumes via ACTIVE_SESSIONS)
+result = run_gemini("YOUR_FOLLOWUP", task_name="codegen")
+
+# After every call — persist sessions
+save_sessions(Path("memory/gemini_sessions.json"))
 ```
 
-Always save session UUIDs to memory/gemini_sessions.json after each call.
+Key facts (probe-verified 2026-05-29, gemini-cli v0.41.2):
+- JSON keys: session_id, response, stats
+- Cold start: ~14s (CLAUDE.md load). Resumes: ~2s.
+- Auth env var for daemon: GEMINI_API_KEY (not GOOGLE_API_KEY)
+- Exit code 41 = auth failure
+- Default timeout: 180s (sufficient for @dir/ bulk analysis)
+
 Always review Gemini output before accepting or committing.
+Always save sessions after calls so they survive restarts.
 
 ## Context Management
 - Monitor your context. At 65% → call wrapup tool IMMEDIATELY
@@ -89,6 +106,8 @@ Always review Gemini output before accepting or committing.
 5. Save Gemini session UUIDs to memory/gemini_sessions.json
 
 ## Recent Decisions
+- 2026-05-29: Phase 3 complete. Gemini CLI orchestration layer live. Key optimisation: --allowed-mcp-server-names none in subprocesses cuts cold-start from 58s to 10s. 8/8 tests pass.
+- 2026-05-29: GitHub repo created: https://github.com/ahmed-145/nazir
 - 2026-05-29: Phase 0.5 probe added. Research found 6 critical bugs in PRD code. OSS grant ineligible.
   Antigravity 2.0 (I/O May 2026) introduced official CLI/SDK — re-evaluate as execution backend.
   gemini_runner.py resume logic broken (sessionId not in JSON output). Daemon design is a one-shot.
