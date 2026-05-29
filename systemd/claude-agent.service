@@ -1,0 +1,16 @@
+[Unit]
+Description=Nazir Claude Code Agent
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir
+ExecStart=%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/systemd/run-claude.sh
+Restart=on-failure
+RestartSec=10
+EnvironmentFile=%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/.env
+StandardOutput=append:%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/logs/agent.log
+StandardError=append:%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/logs/agent.log
+
+[Install]
+WantedBy=default.target

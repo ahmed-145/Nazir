@@ -1,15 +1,40 @@
+# Secrets
 .env
+*.local.md
+
+# Agent context files (machine-specific paths, internal config)
+CLAUDE.md
 CLAUDE.local.md
-node_modules/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
 venv/
 .venv/
-logs/
-dist/
-build/
 *.egg-info/
 .pytest_cache/
-Nazir_PRD_v2.md
+.ruff_cache/
+
+# Node
+node_modules/
+
+# Build
+dist/
+build/
+
+# Logs (keep dir, not contents)
+logs/*.log
+
+# Runtime / generated
+memory/last_gemini_stats.json
+memory/probe_results.json
+memory/probe_report.md
+memory/_probe_tmp/
+
+# PRD drafts (keep v3 only)
 Nazir_PRD.md
-Nazir_PRD_v3.md
+Nazir_PRD_v2.md
+
+# OS
+.DS_Store

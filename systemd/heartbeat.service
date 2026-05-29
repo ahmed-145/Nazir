@@ -1,0 +1,16 @@
+[Unit]
+Description=Nazir Heartbeat Monitor
+After=claude-agent.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir
+ExecStart=/usr/bin/python3 %h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/heartbeat/daemon.py
+Restart=always
+RestartSec=5
+EnvironmentFile=%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/.env
+StandardOutput=append:%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/logs/heartbeat.log
+StandardError=append:%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/logs/heartbeat.log
+
+[Install]
+WantedBy=default.target
