@@ -1,5 +1,5 @@
 # Nazir — Agent Context File
-Last Updated: 2026-05-07
+Last Updated: 2026-05-29
 Version: 2.0
 
 ## Identity
@@ -53,7 +53,7 @@ Key facts (probe-verified 2026-05-29, gemini-cli v0.41.2):
 - JSON keys: session_id, response, stats
 - Cold start: ~14s (CLAUDE.md load). Resumes: ~2s.
 - Auth env var for daemon: GEMINI_API_KEY (not GOOGLE_API_KEY)
-- Exit code 41 = auth failure
+- Auth failure exit code: actual=-1 (not 41 as previously assumed — probe-corrected)
 - Default timeout: 180s (sufficient for @dir/ bulk analysis)
 
 Always review Gemini output before accepting or committing.
@@ -114,17 +114,17 @@ Always save sessions after calls so they survive restarts.
 - 2026-05-07: Phase 0 complete. Gemini CLI confirmed headless --yolo working with API key auth.
 
 ## Current Architecture
-Phase 0 complete + Phase 0.5 probe written. No production code yet.
-Next: run probe_phase0_5.py, read results, then decide execution backend (Gemini CLI vs Antigravity 2.0 CLI).
+Phase 0 + 0.5 complete. Probe run, backend selected: gemini_cli_only.
+Production code started in Phases 1–4 (see git log).
+Next: update PRD v2 with all research findings, then continue Phase 1 hardening.
 
 ## Known Issues / Tech Debt
 
 ### Critical — fix before building
 - NAZIR_PROJECT_ROOT env var not set. All systemd units and daemon code hardcode /home/ahmed/nazir.
   Fix: `export NAZIR_PROJECT_ROOT=<actual project root>` in ~/.bashrc + .env
-- gemini_runner.py reads data["sessionId"] from --output-format json — this field doesn't exist yet
-  (GitHub issue #14435 still open). Workaround: scrape UUID from ~/.gemini/sessions/<hash>/ filesystem
-  after each call instead of reading it from JSON stdout.
+- ~~gemini_runner.py sessionId bug~~ RESOLVED: GitHub issue #14435 is fixed. `sessionId` is present
+  in --output-format json output as of gemini-cli v0.41.2. No workaround needed.
 - gemini_runner.py: never imports `os`; `uuid` and `SESSION_DIR` imported/defined but unused.
 - Claude Code headless (claude -p) has a live SIGTERM/stdin crash bug under systemd (#29642, #40726).
   Use tmux/screen session management rather than a raw systemd ExecStart=claude -p "..." unit.
@@ -148,10 +148,11 @@ Next: run probe_phase0_5.py, read results, then decide execution backend (Gemini
 - Limits still volatile — treat as a swappable backend, not a load-bearing constant.
 - Run probe_phase0_5.py to benchmark Antigravity CLI vs Gemini CLI before committing to either.
 
-### Probe required before Phase 1
-- Run: python3 probe_phase0_5.py
-- Read: memory/probe_report.md
-- These findings replace guesses about Gemini CLI behavior with measured facts.
+### Probe — COMPLETE (2026-05-29)
+- Results: memory/probe_report.md + memory/probe_results.json
+- Backend decision: gemini_cli_only
+- Antigravity 2.0 headless: untested (not needed — gemini_cli is sufficient)
+- claude -p headless: works and survives 20s (SIGTERM bug concern remains for long runs)
 
 ## Active Gemini CLI Sessions
 (none yet)
