@@ -255,5 +255,33 @@ def update_claude_md(
     return f"CLAUDE.md updated: {', '.join(updated) or 'no changes'}"
 
 
+# ── Cost / Metrics (Phase 6) ──────────────────────────────────────────────────
+
+@mcp.tool()
+def cost_report(period: str = "week") -> str:
+    """
+    Show token delegation savings and estimated dollar cost avoided by using
+    Gemini instead of Claude for bulk analysis and code generation.
+
+    period: "today" | "week" | "month" | "all"
+
+    Returns a formatted report with delegation count, tokens used,
+    tokens avoided on Claude, estimated dollars saved, and top tasks.
+    """
+    from orchestrator.metrics import cost_report as _report, format_report
+    return format_report(_report(period))
+
+
+@mcp.tool()
+def delegation_stats() -> str:
+    """
+    Return raw metrics summary as JSON. Useful for the dashboard and
+    programmatic access to savings data.
+    """
+    from orchestrator.metrics import cost_report as _report
+    import json
+    return json.dumps(_report("all"), indent=2)
+
+
 if __name__ == "__main__":
     mcp.run()

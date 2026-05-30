@@ -101,6 +101,18 @@ def run_gemini(
     if session_id and task_name:
         ACTIVE_SESSIONS[task_name] = session_id
 
+    # Record metrics (Phase 6) — fire-and-forget, never block on failure
+    try:
+        from orchestrator.metrics import record
+        record(
+            stats=data.get("stats", {}),
+            task_name=task_name,
+            prompt=prompt[:120] if prompt else None,
+            session_id=session_id,
+        )
+    except Exception:
+        pass  # metrics are never load-bearing
+
     return data.get("response", result.stdout)
 
 
