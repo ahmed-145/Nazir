@@ -1,83 +1,25 @@
 # Nazir Context Checkpoint
-Generated: 2026-05-30T13:37:31.345802
+Generated: 2026-05-30T14:00:00Z
 
 ## Current Task
-RECOVERY MODE — the heartbeat daemon restarted you.
-
-1. Read memory/last_checkpoint.md for what you were doing.
-2. Read CLAUDE.md for project context.
-3. Resume the pending task from the checkpoint.
-
---- Last checkpoint ---
-# Nazir Context Checkpoint
-Generated: 2026-05-30T04:48:27.738183
-
-## Current Task
-RECOVERY MODE — the heartbeat daemon restarted you.
-
-1. Read memory/last_checkpoint.md for what you were doing.
-2. Read CLAUDE.md for project context.
-3. Resume the pending task from the checkpoint.
-
---- Last checkpoint ---
-# Nazir Context Checkpoint
-Generated: 2026-05-30T04:41:26.694794
-
-## Current Task
-DONE
+IDLE — no pending work.
 
 ## Completed Steps
-(none)
+- Phase 1–6 all committed and passing (106/106 tests).
+- Memory drift from repeated daemon restarts committed (f54a0e5).
 
 ## Pending (resume here)
-(none)
+(none — await next user task)
 
 ## Key Decisions Made
-- (auto-saved by PreCompact/Stop hook)
+- Heartbeat daemon looped 3x on empty task; working tree cleaned up.
 
 ## Files Modified This Session
-(none)
+- memory/last_checkpoint.md (this file)
 
 ## Blockers / Issues
-(none)
+- Heartbeat daemon fires recovery mode even when task is DONE.
+  Consider guarding the restart trigger: only restart if task status != "DONE".
 
 ## Active Gemini CLI Sessions
-- p5-restore-test: uuid-restore-1234
-
-## Completed Steps
-(none)
-
-## Pending (resume here)
-(none)
-
-## Key Decisions Made
-- (auto-saved by PreCompact/Stop hook)
-
-## Files Modified This Session
-(none)
-
-## Blockers / Issues
-(none)
-
-## Active Gemini CLI Sessions
-- p5-restore-test: uuid-restore-1234
-- warmup: b3625f33-a6a8-4df0-897f-cd80eb4a5673
-
-## Completed Steps
-(none)
-
-## Pending (resume here)
-(none)
-
-## Key Decisions Made
-- (auto-saved by PreCompact/Stop hook)
-
-## Files Modified This Session
-(none)
-
-## Blockers / Issues
-(none)
-
-## Active Gemini CLI Sessions
-- p5-restore-test: uuid-restore-1234
-- warmup: b3625f33-a6a8-4df0-897f-cd80eb4a5673
+(none — old UUIDs stale after multiple restarts)
