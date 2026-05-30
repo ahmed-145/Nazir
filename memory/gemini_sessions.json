@@ -1,4 +1,4 @@
 {
-  "roundtrip": "uuid-roundtrip-test",
-  "warmup": "4a974f6f-4de3-46b0-8b59-7dfaeff8ac80"
+  "p5-restore-test": "uuid-restore-1234",
+  "warmup": "b3625f33-a6a8-4df0-897f-cd80eb4a5673"
 }
