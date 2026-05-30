@@ -1,3 +1,4 @@
 {
-  "roundtrip": "uuid-roundtrip-test"
+  "roundtrip": "uuid-roundtrip-test",
+  "warmup": "4a974f6f-4de3-46b0-8b59-7dfaeff8ac80"
 }

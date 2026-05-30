@@ -32,9 +32,19 @@ memory/probe_results.json
 memory/probe_report.md
 memory/_probe_tmp/
 
-# PRD drafts (keep v3 only)
+# Superseded PRD versions (v4 is the single source of truth)
 Nazir_PRD.md
 Nazir_PRD_v2.md
+Nazir_PRD_v3.md
+ROADMAP.md
+
+# Runtime memory (machine state, not source)
+memory/checkpoints/
+memory/task_log.jsonl
+memory/current_task.md
+memory/last_checkpoint.md
+memory/gemini_sessions.json
+memory/metrics.db
 
 # OS
 .DS_Store
