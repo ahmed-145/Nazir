@@ -568,64 +568,276 @@ else:
 # ═══════════════════════════════════════════════════════════════════════════════
 header("Phase 5 — Context Management")
 
+# ── 5.1 Module imports ───────────────────────────────────────────────────────
 try:
     from memory.wrapup import write_checkpoint, quick_wrapup
     from memory.catchup import restore, summary
-    from memory.updater import full_update, prepend_decision
-    ok("Phase 5 modules import OK")
+    from memory.updater import (
+        full_update, prepend_decision, update_section,
+        update_architecture, update_known_issues, _replace_section,
+    )
+    ok("Phase 5 modules import OK (wrapup, catchup, updater)")
 except ImportError as e:
     fail("Phase 5 module import failed", str(e))
 
-# wrapup creates checkpoint
+# ── 5.2 write_checkpoint: archive created with correct name format ────────────
 try:
-    archive = write_checkpoint("test task", ["done"], ["pending"], [], [], [])
-    if Path(archive).exists():
-        ok("write_checkpoint: archive created", archive[-40:])
-    else:
-        fail("write_checkpoint: archive not found")
+    _before_ckpts = len(list((PROJECT_ROOT / "memory" / "checkpoints").glob("*.md")))
+    archive = write_checkpoint(
+        "phase5-god-mode-test",
+        completed=["step A done", "step B done"],
+        pending=["step C pending"],
+        decisions=["chose X over Y because Z"],
+        files_modified=["memory/wrapup.py"],
+        blockers=["none"],
+    )
+    _ap = Path(archive)
+    assert _ap.exists(), "archive file not created"
+    # Archive name must be YYYYMMDD_HHMMSS.md
+    import re as _re
+    assert _re.match(r"\d{8}_\d{6}\.md", _ap.name), f"bad name: {_ap.name}"
+    ok("write_checkpoint: archive created with correct YYYYMMDD_HHMMSS.md name", _ap.name)
+except AssertionError as e:
+    fail("write_checkpoint archive", str(e))
 except Exception as e:
     fail("write_checkpoint failed", str(e)[:80])
 
-# last_checkpoint.md exists
-cp = PROJECT_ROOT / "memory" / "last_checkpoint.md"
-if cp.exists() and cp.stat().st_size > 0:
-    ok("last_checkpoint.md: exists and non-empty", f"{cp.stat().st_size} bytes")
-else:
-    fail("last_checkpoint.md missing")
-
-# checkpoints archive dir has files
-ckpts = list((PROJECT_ROOT / "memory" / "checkpoints").glob("*.md"))
-ok(f"checkpoints archive: {len(ckpts)} file(s)")
-
-# catchup round-trip
+# ── 5.3 last_checkpoint.md: exists and has expected sections ─────────────────
+_cp = PROJECT_ROOT / "memory" / "last_checkpoint.md"
 try:
-    ctx = restore()
-    s = summary()
-    if s["has_checkpoint"] and "sessions_count" in s:
-        ok("catchup round-trip: checkpoint + sessions restored", f"age={s['checkpoint_age_seconds']}s")
-    else:
-        fail("catchup round-trip failed", str(s))
+    assert _cp.exists() and _cp.stat().st_size > 0
+    _cp_text = _cp.read_text()
+    for _section in (
+        "# Nazir Context Checkpoint",
+        "## Current Task",
+        "## Completed Steps",
+        "## Pending (resume here)",
+        "## Key Decisions Made",
+        "## Files Modified This Session",
+        "## Active Gemini CLI Sessions",
+    ):
+        assert _section in _cp_text, f"missing: {_section}"
+    ok("last_checkpoint.md: exists with all required sections",
+       f"{_cp.stat().st_size} bytes")
+except AssertionError as e:
+    fail("last_checkpoint.md content", str(e))
 except Exception as e:
-    fail("catchup failed", str(e)[:80])
+    fail("last_checkpoint.md check failed", str(e)[:80])
 
-# hooks configured
-hooks_file = PROJECT_ROOT / ".claude" / "settings.json"
-if hooks_file.exists():
-    data = json.loads(hooks_file.read_text())
-    h = data.get("hooks", {})
-    if h.get("PreCompact") and h.get("Stop"):
-        ok("Claude Code hooks: PreCompact + Stop configured")
+# ── 5.4 write_checkpoint: content matches inputs ─────────────────────────────
+try:
+    _cp_text = _cp.read_text()
+    assert "phase5-god-mode-test" in _cp_text, "task not in checkpoint"
+    assert "step A done"          in _cp_text, "completed step missing"
+    assert "step C pending"       in _cp_text, "pending step missing"
+    assert "chose X over Y"       in _cp_text, "decision missing"
+    assert "memory/wrapup.py"     in _cp_text, "file_modified missing"
+    ok("write_checkpoint: content matches all inputs (task/completed/pending/decisions/files)")
+except AssertionError as e:
+    fail("write_checkpoint content mismatch", str(e))
+
+# ── 5.5 write_checkpoint: Gemini sessions embedded + persisted ───────────────
+try:
+    _test_sessions = {"p5-task-a": "uuid-aaaa-bbbb", "p5-task-b": "uuid-cccc-dddd"}
+    _arch2 = write_checkpoint(
+        "sessions test", gemini_sessions=_test_sessions
+    )
+    _arch2_text = Path(_arch2).read_text()
+    assert "p5-task-a" in _arch2_text, "session key not in archive"
+    assert "uuid-aaaa" in _arch2_text, "session uuid not in archive"
+    # gemini_sessions.json must be updated
+    _sf = PROJECT_ROOT / "memory" / "gemini_sessions.json"
+    assert _sf.exists()
+    _saved = json.loads(_sf.read_text())
+    assert _saved.get("p5-task-a") == "uuid-aaaa-bbbb", "session not persisted to JSON"
+    ok("write_checkpoint: Gemini sessions embedded in archive + persisted to JSON")
+except AssertionError as e:
+    fail("write_checkpoint sessions persistence", str(e))
+except Exception as e:
+    fail("write_checkpoint sessions failed", str(e)[:80])
+
+# ── 5.6 checkpoints archive grows on each call ───────────────────────────────
+# Note: two calls within the same second share a %H%M%S filename — the second
+# overwrites the first, so we check >= +1, not +2.
+_after_ckpts = len(list((PROJECT_ROOT / "memory" / "checkpoints").glob("*.md")))
+if _after_ckpts >= _before_ckpts + 1:
+    ok(f"checkpoints archive: grew from {_before_ckpts} → {_after_ckpts} files")
+else:
+    fail(f"checkpoints archive: expected growth, got {_before_ckpts} → {_after_ckpts}")
+
+# ── 5.7 quick_wrapup(): works, reads current_task.md if no arg ───────────────
+try:
+    _qw = quick_wrapup("quick-test-task")
+    assert Path(_qw).exists(), "quick_wrapup returned non-existent archive"
+    _qw_text = Path(_qw).read_text()
+    assert "quick-test-task" in _qw_text
+    ok("quick_wrapup(task): works, archive created")
+except Exception as e:
+    fail("quick_wrapup failed", str(e)[:80])
+
+try:
+    # No-arg version reads from current_task.md
+    _qw2 = quick_wrapup()
+    assert Path(_qw2).exists()
+    ok("quick_wrapup() no-arg: reads from current_task.md")
+except Exception as e:
+    fail("quick_wrapup() no-arg failed", str(e)[:80])
+
+# ── 5.8 catchup.restore(): returns string with checkpoint content ─────────────
+try:
+    _ctx = restore()
+    assert isinstance(_ctx, str) and len(_ctx) > 50
+    assert "Nazir Context Checkpoint" in _ctx or "No previous checkpoint" in _ctx
+    ok("catchup.restore(): returns non-empty context string",
+       f"{len(_ctx)} chars")
+except Exception as e:
+    fail("catchup.restore() failed", str(e)[:80])
+
+# ── 5.9 catchup.restore(): Gemini sessions injected into ACTIVE_SESSIONS ─────
+try:
+    from orchestrator.gemini_runner import ACTIVE_SESSIONS, load_sessions
+    # Write a known session file then restore
+    _sf = PROJECT_ROOT / "memory" / "gemini_sessions.json"
+    _known = {"p5-restore-test": "uuid-restore-1234"}
+    _sf.write_text(json.dumps(_known))
+    restore()  # should call load_sessions internally
+    # ACTIVE_SESSIONS should now contain the key
+    assert "p5-restore-test" in ACTIVE_SESSIONS, \
+        f"session not restored into ACTIVE_SESSIONS: {list(ACTIVE_SESSIONS.keys())}"
+    ok("catchup.restore(): Gemini sessions injected into ACTIVE_SESSIONS",
+       f"p5-restore-test → {ACTIVE_SESSIONS['p5-restore-test'][:12]}...")
+except AssertionError as e:
+    fail("catchup sessions injection", str(e))
+except Exception as e:
+    fail("catchup sessions injection failed", str(e)[:80])
+
+# ── 5.10 catchup.summary(): correct structure ────────────────────────────────
+try:
+    _s = summary()
+    for _k in ("has_checkpoint", "checkpoint_age_seconds", "sessions_count",
+               "sessions", "current_task"):
+        assert _k in _s, f"missing key: {_k}"
+    assert _s["has_checkpoint"] is True
+    assert isinstance(_s["sessions_count"], int)
+    ok("catchup.summary(): all required keys present",
+       f"age={_s['checkpoint_age_seconds']}s sessions={_s['sessions_count']}")
+except AssertionError as e:
+    fail("catchup.summary() structure", str(e))
+except Exception as e:
+    fail("catchup.summary() failed", str(e)[:80])
+
+# ── 5.11 catchup.py runs as standalone script ────────────────────────────────
+_r = run(["python3", str(PROJECT_ROOT / "memory" / "catchup.py")], timeout=10)
+if _r.returncode == 0 and "Nazir catchup" in _r.stdout:
+    ok("catchup.py runs as standalone script")
+else:
+    fail("catchup.py standalone failed", _r.stderr[:60] or _r.stdout[:60])
+
+# ── 5.12 updater._replace_section: regex engine works ────────────────────────
+try:
+    _doc = "# Doc\n\n## Recent Decisions\nold content\n\n## Other Section\nstays\n"
+    _updated = _replace_section(_doc, "Recent Decisions", "new content")
+    assert "new content" in _updated, "replacement not applied"
+    assert "old content" not in _updated, "old content not removed"
+    assert "stays" in _updated, "Other Section clobbered"
+    ok("updater._replace_section: regex replacement correct")
+except AssertionError as e:
+    fail("_replace_section logic", str(e))
+except Exception as e:
+    fail("_replace_section failed", str(e)[:80])
+
+# ── 5.13 updater.prepend_decision(): dated entry prepended ───────────────────
+try:
+    _orig = _cp.read_text() if _cp.exists() else ""
+    # Work on CLAUDE.md directly (it exists in the project)
+    _claude_md = PROJECT_ROOT / "CLAUDE.md"
+    if _claude_md.exists():
+        _before = _claude_md.read_text()
+        prepend_decision("phase5-god-mode-test decision")
+        _after = _claude_md.read_text()
+        assert "phase5-god-mode-test decision" in _after, "decision not prepended"
+        # Restore original to avoid polluting CLAUDE.md permanently
+        _claude_md.write_text(_before)
+        ok("updater.prepend_decision(): dated entry prepended and visible in CLAUDE.md")
     else:
-        fail("hooks missing from .claude/settings.json")
+        skip("updater.prepend_decision()", "CLAUDE.md not found")
+except AssertionError as e:
+    fail("prepend_decision content check", str(e))
+except Exception as e:
+    fail("prepend_decision failed", str(e)[:80])
+
+# ── 5.14 updater.update_architecture(): section replaced ─────────────────────
+try:
+    _claude_md = PROJECT_ROOT / "CLAUDE.md"
+    if _claude_md.exists():
+        _before = _claude_md.read_text()
+        _sentinel = "TEST_ARCH_SENTINEL_PHASE5_GODMODE"
+        update_architecture(_sentinel)
+        _after = _claude_md.read_text()
+        assert _sentinel in _after, "sentinel not found after update"
+        _claude_md.write_text(_before)  # restore
+        ok("updater.update_architecture(): section replaced and restored")
+    else:
+        skip("updater.update_architecture()", "CLAUDE.md not found")
+except AssertionError as e:
+    fail("update_architecture check", str(e))
+except Exception as e:
+    fail("update_architecture failed", str(e)[:80])
+
+# ── 5.15 updater.full_update(): all fields in one call ───────────────────────
+try:
+    _claude_md = PROJECT_ROOT / "CLAUDE.md"
+    if _claude_md.exists():
+        _before = _claude_md.read_text()
+        full_update(
+            decision="full_update test decision",
+            architecture="full_update test architecture",
+        )
+        _after = _claude_md.read_text()
+        assert "full_update test decision"     in _after
+        assert "full_update test architecture" in _after
+        _claude_md.write_text(_before)  # restore
+        ok("updater.full_update(): decision + architecture updated in one call")
+    else:
+        skip("updater.full_update()", "CLAUDE.md not found")
+except AssertionError as e:
+    fail("full_update check", str(e))
+except Exception as e:
+    fail("full_update failed", str(e)[:80])
+
+# ── 5.16 MCP tools: wrapup, catchup, update_claude_md in server.py ───────────
+try:
+    _srv_src = (PROJECT_ROOT / "mcp_server" / "server.py").read_text()
+    for _tool in ("def wrapup", "def catchup", "def update_claude_md"):
+        assert _tool in _srv_src, f"missing MCP tool: {_tool}"
+    ok("MCP server: wrapup + catchup + update_claude_md tools present")
+except AssertionError as e:
+    fail("MCP tools missing", str(e))
+except Exception as e:
+    fail("MCP tool check failed", str(e)[:80])
+
+# ── 5.17 Claude Code hooks: PreCompact + Stop configured ─────────────────────
+_hooks_file = PROJECT_ROOT / ".claude" / "settings.json"
+if _hooks_file.exists():
+    try:
+        _hdata = json.loads(_hooks_file.read_text())
+        _h = _hdata.get("hooks", {})
+        assert _h.get("PreCompact"), "PreCompact hook missing"
+        assert _h.get("Stop"),       "Stop hook missing"
+        ok("Claude Code hooks: PreCompact + Stop configured")
+    except AssertionError as e:
+        fail("hooks missing from .claude/settings.json", str(e))
+    except Exception as e:
+        fail("hooks file parse error", str(e)[:60])
 else:
     fail(".claude/settings.json not found")
 
-# hook command works as subprocess
-r = run(["python3", str(PROJECT_ROOT / "memory" / "wrapup.py")], timeout=10)
-if r.returncode == 0 and "Checkpoint" in r.stdout:
+# ── 5.18 wrapup.py runs as hook command (subprocess) ─────────────────────────
+_r = run(["python3", str(PROJECT_ROOT / "memory" / "wrapup.py")], timeout=10)
+if _r.returncode == 0 and "Checkpoint" in _r.stdout:
     ok("wrapup.py runs as hook command (subprocess)")
 else:
-    fail("wrapup.py hook command failed", r.stderr[:60])
+    fail("wrapup.py hook command failed", _r.stderr[:60])
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
