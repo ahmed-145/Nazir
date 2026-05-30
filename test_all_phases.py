@@ -564,43 +564,6 @@ else:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FINAL SUMMARY
-# ═══════════════════════════════════════════════════════════════════════════════
-passed  = [r for r in results if r[0] is True]
-failed  = [r for r in results if r[0] is False]
-skipped = [r for r in results if r[0] is None]
-
-total = len(results)
-n_pass = len(passed)
-n_fail = len(failed)
-n_skip = len(skipped)
-
-print(f"\n{BO}{'═'*62}{RE}")
-print(f"{BO}  RESULTS{RE}")
-print(f"{'═'*62}")
-print(f"  {G}{n_pass:>3} passed{RE}   {R}{n_fail:>2} failed{RE}   {Y}{n_skip:>2} skipped{RE}   {total} total")
-
-if failed:
-    print(f"\n{R}{BO}  FAILURES:{RE}")
-    for _, name, detail in failed:
-        print(f"  {R}✗{RE}  {name}")
-        if detail:
-            print(f"     {detail}")
-
-if skipped:
-    print(f"\n{Y}  SKIPPED:{RE}")
-    for _, name, detail in skipped:
-        print(f"  {Y}·{RE}  {name}" + (f"  →  {detail}" if detail else ""))
-
-score = n_pass / (total - n_skip) * 100 if (total - n_skip) > 0 else 0
-color = G if score >= 90 else (Y if score >= 70 else R)
-print(f"\n  {color}{BO}Score: {score:.0f}%  ({n_pass}/{total - n_skip} non-skipped){RE}")
-print(f"{'═'*62}\n")
-
-sys.exit(0 if n_fail == 0 else 1)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # PHASE 5 — Context Management
 # ═══════════════════════════════════════════════════════════════════════════════
 header("Phase 5 — Context Management")
@@ -663,3 +626,276 @@ if r.returncode == 0 and "Checkpoint" in r.stdout:
     ok("wrapup.py runs as hook command (subprocess)")
 else:
     fail("wrapup.py hook command failed", r.stderr[:60])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 6 — Metrics & Cost Engine
+# ═══════════════════════════════════════════════════════════════════════════════
+header("Phase 6 — Metrics & Cost Engine")
+
+# ── 6.1 Module import ────────────────────────────────────────────────────────
+try:
+    from orchestrator.metrics import (
+        record, record_delegation, parse_stats, estimate_savings,
+        cost_report, format_report, cost_governor, lifetime_report,
+        db_row_count, schema_columns,
+        CLAUDE_SONNET_INPUT_PER_MTOK, CLAUDE_SONNET_OUTPUT_PER_MTOK,
+        DB_PATH,
+    )
+    ok("metrics.py imports OK")
+except ImportError as e:
+    fail("metrics.py import failed", str(e))
+
+# ── 6.2 DB exists ────────────────────────────────────────────────────────────
+if DB_PATH.exists():
+    ok("metrics.db exists", f"{DB_PATH.stat().st_size} bytes")
+else:
+    fail("metrics.db not found", str(DB_PATH))
+
+# ── 6.3 Schema validation ────────────────────────────────────────────────────
+try:
+    cols = schema_columns()
+    required = {
+        "id", "timestamp", "task_name", "gemini_input_tokens",
+        "gemini_output_tokens", "gemini_total_tokens", "dollars_saved",
+        "latency_ms", "session_id",
+    }
+    missing = required - set(cols)
+    if not missing:
+        ok("delegations schema: all required columns present", f"{len(cols)} cols")
+    else:
+        fail("delegations schema: missing columns", str(missing))
+except Exception as e:
+    fail("schema check failed", str(e)[:80])
+
+# ── 6.4 parse_stats unit test ────────────────────────────────────────────────
+_FAKE_STATS = {
+    "models": {
+        "gemini-2.0-flash": {
+            "api": {"totalLatencyMs": 1200},
+            "tokens": {"input": 5000, "candidates": 800, "cached": 100, "total": 5900},
+        },
+        "gemini-2.0-flash-thinking": {
+            "api": {"totalLatencyMs": 500},
+            "tokens": {"input": 200, "candidates": 50, "cached": 0, "total": 250},
+        },
+    }
+}
+try:
+    parsed = parse_stats(_FAKE_STATS)
+    assert parsed["input_tokens"]  == 5200,  f"input={parsed['input_tokens']}"
+    assert parsed["output_tokens"] == 850,   f"output={parsed['output_tokens']}"
+    assert parsed["cached_tokens"] == 100,   f"cached={parsed['cached_tokens']}"
+    assert parsed["total_tokens"]  == 6150,  f"total={parsed['total_tokens']}"
+    assert parsed["latency_ms"]    == 1700,  f"latency={parsed['latency_ms']}"
+    assert len(parsed["models"])   == 2
+    ok("parse_stats: multi-model aggregation correct",
+       f"in={parsed['input_tokens']} out={parsed['output_tokens']} lat={parsed['latency_ms']}ms")
+except AssertionError as e:
+    fail("parse_stats: wrong aggregation", str(e))
+except Exception as e:
+    fail("parse_stats threw", str(e)[:80])
+
+# ── 6.5 estimate_savings math ────────────────────────────────────────────────
+try:
+    avoided_in, avoided_out, dollars = estimate_savings(1_000_000, 100_000)
+    expected = (1_000_000 / 1_000_000) * CLAUDE_SONNET_INPUT_PER_MTOK \
+             + (100_000  / 1_000_000) * CLAUDE_SONNET_OUTPUT_PER_MTOK
+    assert abs(dollars - expected) < 0.0001, f"got {dollars} expected {expected}"
+    ok("estimate_savings: math correct",
+       f"1M in + 100k out → ${dollars:.4f} saved")
+except AssertionError as e:
+    fail("estimate_savings: math wrong", str(e))
+except Exception as e:
+    fail("estimate_savings threw", str(e)[:80])
+
+# ── 6.6 record() x3 delegations → DB acceptance criterion ───────────────────
+_baseline = db_row_count()
+_tasks = [
+    ("phase6-test-analysis",  _FAKE_STATS, "Analyze @src/ for API endpoints"),
+    ("phase6-test-codegen",   _FAKE_STATS, "Generate unit tests for auth module"),
+    ("phase6-test-review",    _FAKE_STATS, "Review diff before commit"),
+]
+_recorded = 0
+for _tname, _stats, _prompt in _tasks:
+    try:
+        _dollars = record(stats=_stats, task_name=_tname, prompt=_prompt, session_id=f"test-uuid-{_tname}")
+        assert isinstance(_dollars, float) and _dollars > 0
+        _recorded += 1
+    except Exception as e:
+        fail(f"record() failed for {_tname}", str(e)[:80])
+
+if _recorded == 3:
+    ok("record(): 3 delegations written successfully")
+else:
+    fail(f"record(): only {_recorded}/3 delegations written")
+
+_new_count = db_row_count()
+if _new_count >= _baseline + 3:
+    ok("delegations table: row count increased by 3",
+       f"{_baseline} → {_new_count} rows")
+else:
+    fail("delegations table: row count did not increase by 3",
+         f"was {_baseline}, now {_new_count}")
+
+# ── 6.7 record_delegation alias ──────────────────────────────────────────────
+try:
+    _d = record_delegation(stats=_FAKE_STATS, task_name="phase6-alias-test")
+    assert isinstance(_d, float) and _d >= 0
+    ok("record_delegation alias works", f"${_d:.6f}")
+except Exception as e:
+    fail("record_delegation alias failed", str(e)[:80])
+
+# ── 6.8 cost_report() returns non-zero dollars_saved ────────────────────────
+try:
+    report = cost_report("all")
+    assert report["delegations"] > 0,    "no delegations recorded"
+    assert report["dollars_saved"] > 0,  "dollars_saved is 0"
+    assert report["gemini_tokens"] > 0,  "gemini_tokens is 0"
+    assert "pricing_model" in report
+    ok("cost_report('all'): non-zero dollars_saved",
+       f"{report['delegations']} delegations, ${report['dollars_saved']:.4f} saved")
+except AssertionError as e:
+    fail("cost_report('all'): assertion failed", str(e))
+except Exception as e:
+    fail("cost_report threw", str(e)[:80])
+
+# period filters
+for _period in ("today", "week", "month"):
+    try:
+        r = cost_report(_period)
+        assert "delegations" in r and "dollars_saved" in r
+        ok(f"cost_report('{_period}'): returns valid dict",
+           f"{r['delegations']} delegations")
+    except Exception as e:
+        fail(f"cost_report('{_period}') failed", str(e)[:80])
+
+# ── 6.9 lifetime_report() alias ──────────────────────────────────────────────
+try:
+    lr = lifetime_report()
+    assert lr["period"] == "all"
+    ok("lifetime_report(): alias returns all-time report",
+       f"${lr['dollars_saved']:.4f} total saved")
+except Exception as e:
+    fail("lifetime_report failed", str(e)[:80])
+
+# ── 6.10 format_report() produces readable output ───────────────────────────
+try:
+    text = format_report(cost_report("all"))
+    for kw in ("Delegations", "Gemini tokens", "Dollars saved", "Claude"):
+        assert kw in text, f"'{kw}' not in output"
+    ok("format_report(): all required fields present in output",
+       f"{len(text)} chars")
+except AssertionError as e:
+    fail("format_report: missing keyword", str(e))
+except Exception as e:
+    fail("format_report threw", str(e)[:80])
+
+# ── 6.11 cost_governor() ─────────────────────────────────────────────────────
+try:
+    # $999 budget → definitely not throttled
+    under = cost_governor(daily_budget_usd=999.0)
+    assert under is False, "cost_governor falsely throttled with $999 budget"
+    # $0 budget → always throttled once we have data
+    over = cost_governor(daily_budget_usd=0.0)
+    assert over is True, "cost_governor failed to throttle with $0 budget"
+    ok("cost_governor(): under/over budget logic correct")
+except AssertionError as e:
+    fail("cost_governor logic wrong", str(e))
+except Exception as e:
+    fail("cost_governor threw", str(e)[:80])
+
+# ── 6.12 gemini_runner wired to metrics ──────────────────────────────────────
+try:
+    import inspect
+    import orchestrator.gemini_runner as gr
+    src = inspect.getsource(gr.run_gemini)
+    assert "metrics" in src and "record" in src
+    ok("gemini_runner.run_gemini: metrics.record call is present")
+except AssertionError:
+    fail("gemini_runner.run_gemini: metrics not wired up")
+except Exception as e:
+    fail("gemini_runner inspection failed", str(e)[:80])
+
+# ── 6.13 MCP tools importable ────────────────────────────────────────────────
+try:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "mcp_server", PROJECT_ROOT / "mcp_server" / "server.py"
+    )
+    # Just check cost_report + delegation_stats appear in source text
+    srv_src = (PROJECT_ROOT / "mcp_server" / "server.py").read_text()
+    assert "def cost_report" in srv_src,     "cost_report tool missing"
+    assert "def delegation_stats" in srv_src, "delegation_stats tool missing"
+    ok("MCP server: cost_report + delegation_stats tools present")
+except AssertionError as e:
+    fail("MCP server: tool missing", str(e))
+except Exception as e:
+    fail("MCP server check failed", str(e)[:80])
+
+# ── 6.14 daily_summary table upsert ─────────────────────────────────────────
+try:
+    import sqlite3
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    today_str = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+    row = conn.execute(
+        "SELECT delegations, dollars_saved FROM daily_summary WHERE date = ?",
+        (today_str,)
+    ).fetchone()
+    conn.close()
+    if row and row["delegations"] >= 3:
+        ok("daily_summary: today's row has >= 3 delegations",
+           f"{row['delegations']} delegations, ${row['dollars_saved']:.4f}")
+    else:
+        fail("daily_summary: today's row missing or low count",
+             f"row={dict(row) if row else None}")
+except Exception as e:
+    fail("daily_summary check failed", str(e)[:80])
+
+# ── 6.15 DB has >= 3 rows (PRD acceptance criterion) ────────────────────────
+try:
+    total = db_row_count()
+    if total >= 3:
+        ok(f"PRD acceptance: delegations table has {total} rows (≥3 required)")
+    else:
+        fail(f"PRD acceptance: only {total} rows in delegations table (need ≥3)")
+except Exception as e:
+    fail("row count check failed", str(e)[:80])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FINAL SUMMARY
+# ═══════════════════════════════════════════════════════════════════════════════
+passed  = [r for r in results if r[0] is True]
+failed  = [r for r in results if r[0] is False]
+skipped = [r for r in results if r[0] is None]
+
+total = len(results)
+n_pass = len(passed)
+n_fail = len(failed)
+n_skip = len(skipped)
+
+print(f"\n{BO}{'═'*62}{RE}")
+print(f"{BO}  RESULTS{RE}")
+print(f"{'═'*62}")
+print(f"  {G}{n_pass:>3} passed{RE}   {R}{n_fail:>2} failed{RE}   {Y}{n_skip:>2} skipped{RE}   {total} total")
+
+if failed:
+    print(f"\n{R}{BO}  FAILURES:{RE}")
+    for _, name, detail in failed:
+        print(f"  {R}✗{RE}  {name}")
+        if detail:
+            print(f"     {detail}")
+
+if skipped:
+    print(f"\n{Y}  SKIPPED:{RE}")
+    for _, name, detail in skipped:
+        print(f"  {Y}·{RE}  {name}" + (f"  →  {detail}" if detail else ""))
+
+score = n_pass / (total - n_skip) * 100 if (total - n_skip) > 0 else 0
+color = G if score >= 90 else (Y if score >= 70 else R)
+print(f"\n  {color}{BO}Score: {score:.0f}%  ({n_pass}/{total - n_skip} non-skipped){RE}")
+print(f"{'═'*62}\n")
+
+sys.exit(0 if n_fail == 0 else 1)

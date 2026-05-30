@@ -223,11 +223,14 @@ def cost_report(period: str = "week") -> dict:
         """, args).fetchone()
 
         # Top tasks by savings
+        task_filter = (
+            f"{where} AND task_name IS NOT NULL"
+            if where else "WHERE task_name IS NOT NULL"
+        )
         top = conn.execute(f"""
             SELECT task_name, COUNT(*) as calls, SUM(dollars_saved) as saved
             FROM delegations
-            {where}
-            WHERE task_name IS NOT NULL
+            {task_filter}
             GROUP BY task_name
             ORDER BY saved DESC
             LIMIT 5
@@ -273,3 +276,58 @@ def format_report(report: dict) -> str:
     if d["first_delegation"]:
         lines.append(f"First delegation: {d['first_delegation'][:19]}")
     return "\n".join(lines)
+
+
+# ── Aliases & helpers ─────────────────────────────────────────────────────────
+
+# PRD spec used record_delegation — keep both names
+record_delegation = record
+
+def lifetime_report() -> dict:
+    """Full all-time report. Convenience alias for cost_report('all')."""
+    return cost_report("all")
+
+
+def cost_governor(daily_budget_usd: float = 1.0) -> bool:
+    """
+    Returns True if today's estimated dollar savings have exceeded daily_budget_usd.
+
+    In practice this measures Gemini delegation volume, not spend —
+    the 'savings' metric scales with usage, so it's a reasonable proxy
+    for how hard the agent worked today.
+
+    Usage:
+        if cost_governor(0.50):
+            # slow down — fall back to Claude for smaller tasks
+    """
+    today = datetime.now().strftime("%Y-%m-%d")
+    conn = _db()
+    try:
+        row = conn.execute(
+            "SELECT COALESCE(dollars_saved, 0) FROM daily_summary WHERE date = ?",
+            (today,)
+        ).fetchone()
+        if row is None:
+            return False
+        return float(row[0]) >= daily_budget_usd
+    finally:
+        conn.close()
+
+
+def db_row_count() -> int:
+    """Return total number of rows in the delegations table."""
+    conn = _db()
+    try:
+        return conn.execute("SELECT COUNT(*) FROM delegations").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def schema_columns() -> list[str]:
+    """Return column names from the delegations table."""
+    conn = _db()
+    try:
+        cur = conn.execute("PRAGMA table_info(delegations)")
+        return [row[1] for row in cur.fetchall()]
+    finally:
+        conn.close()

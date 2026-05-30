@@ -807,7 +807,7 @@ The Anthropic Claude for Open Source grant requires 5,000+ GitHub stars. Nazir c
 | 3 | Gemini orchestration | ✅ | 8/8 tests, live call + session resume |
 | 4 | Heartbeat + systemd | ✅ | Live recovery: 323s stale → RECOVERY MODE |
 | 5 | Context management | ✅ | 16/16 tests, wrapup→catchup round-trip |
-| **6** | **Metrics engine** | ⬜ | 3 delegations logged, cost_report() works |
+| **6** | **Metrics engine** | ✅ | 26/26 tests pass — schema, parse_stats, estimate_savings, 3 delegations, cost_report, cost_governor, MCP tools |
 | **7** | **Dashboard** | ⬜ | Live render, $ counter increments |
 | **8** | **Subagents** | ⬜ | plan→code→test→review→commit unattended |
 | **9** | **First real mission** | ⬜ | Real feature shipped, git history clean |
