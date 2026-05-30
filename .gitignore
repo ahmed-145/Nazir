@@ -49,3 +49,5 @@ memory/metrics.db
 # OS
 .DS_Store
 
+dashboard/exports/
+*.svg

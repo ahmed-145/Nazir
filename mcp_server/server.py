@@ -283,5 +283,37 @@ def delegation_stats() -> str:
     return json.dumps(_report("all"), indent=2)
 
 
+# ── Dashboard (Phase 7) ───────────────────────────────────────────────────────
+
+@mcp.tool()
+def dashboard_snapshot() -> str:
+    """
+    Return a JSON snapshot of the current dashboard state: heartbeat, agent
+    status, active sessions, cost summary, current task, recent tasks.
+    Useful for quick status checks without launching the TUI.
+    """
+    import json
+    from dashboard.data import full_snapshot
+    return json.dumps(full_snapshot(), indent=2)
+
+
+@mcp.tool()
+def export_dashboard(format: str = "html") -> str:
+    """
+    Export a static dashboard snapshot to file.
+
+    format: "html" (self-contained HTML page, default) | "svg" (terminal screenshot)
+
+    Returns the path to the exported file.
+    """
+    if format == "svg":
+        from dashboard.export import export_svg
+        path = export_svg()
+    else:
+        from dashboard.export import export_html
+        path = export_html()
+    return f"Exported → {path}"
+
+
 if __name__ == "__main__":
     mcp.run()

@@ -808,7 +808,7 @@ The Anthropic Claude for Open Source grant requires 5,000+ GitHub stars. Nazir c
 | 4 | Heartbeat + systemd | ✅ | Live recovery: 323s stale → RECOVERY MODE |
 | 5 | Context management | ✅ | 16/16 tests, wrapup→catchup round-trip |
 | **6** | **Metrics engine** | ✅ | 26/26 tests pass — schema, parse_stats, estimate_savings, 3 delegations, cost_report, cost_governor, MCP tools |
-| **7** | **Dashboard** | ⬜ | Live render, $ counter increments |
+| **7** | **Dashboard** | ✅ | 30/30 tests pass — Textual TUI, data layer, 5 widgets, headless render, SVG+HTML export, 2 MCP tools |
 | **8** | **Subagents** | ⬜ | plan→code→test→review→commit unattended |
 | **9** | **First real mission** | ⬜ | Real feature shipped, git history clean |
 | **10** | **Showcase & polish** | ⬜ | CI green, README lands in 90s |

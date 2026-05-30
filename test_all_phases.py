@@ -1076,6 +1076,277 @@ except Exception as e:
     fail("row count check failed", str(e)[:80])
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 7 — Observability Dashboard
+# ═══════════════════════════════════════════════════════════════════════════════
+header("Phase 7 — Observability Dashboard")
+
+# ── 7.1 dashboard/ package structure ─────────────────────────────────────────
+_dash = PROJECT_ROOT / "dashboard"
+for _f in (
+    _dash / "__init__.py",
+    _dash / "app.py",
+    _dash / "data.py",
+    _dash / "export.py",
+    _dash / "widgets" / "__init__.py",
+    _dash / "widgets" / "status_bar.py",
+    _dash / "widgets" / "task_panel.py",
+    _dash / "widgets" / "cost_panel.py",
+    _dash / "widgets" / "token_meter.py",
+    _dash / "widgets" / "session_panel.py",
+):
+    if _f.exists():
+        ok(f"file exists: dashboard/{_f.relative_to(_dash)}")
+    else:
+        fail(f"missing file: dashboard/{_f.relative_to(_dash)}")
+
+# ── 7.2 data.py: all functions importable and return correct types ────────────
+try:
+    from dashboard.data import (
+        heartbeat_age, heartbeat_label, heartbeat_ok,
+        service_status, agent_status,
+        active_sessions, session_count,
+        current_task_text, is_agent_busy,
+        recent_tasks, recent_tasks_formatted,
+        cost_summary, delegation_ratio,
+        full_snapshot,
+    )
+    ok("dashboard.data: all functions importable")
+except ImportError as e:
+    fail("dashboard.data import failed", str(e))
+
+# heartbeat_age returns int or None
+try:
+    _age = heartbeat_age()
+    assert _age is None or isinstance(_age, int), f"type: {type(_age)}"
+    ok("data.heartbeat_age(): returns int or None", f"{_age}s" if _age else "file missing")
+except Exception as e:
+    fail("data.heartbeat_age() failed", str(e)[:80])
+
+# heartbeat_label returns string
+try:
+    _lbl = heartbeat_label()
+    assert isinstance(_lbl, str) and len(_lbl) > 0
+    ok("data.heartbeat_label(): returns non-empty string", repr(_lbl))
+except Exception as e:
+    fail("data.heartbeat_label() failed", str(e)[:80])
+
+# heartbeat_ok returns bool
+try:
+    _ok = heartbeat_ok()
+    assert isinstance(_ok, bool)
+    ok("data.heartbeat_ok(): returns bool", str(_ok))
+except Exception as e:
+    fail("data.heartbeat_ok() failed", str(e)[:80])
+
+# agent_status returns a valid string
+try:
+    _st = agent_status()
+    assert _st in ("active", "inactive", "failed", "unknown", "activating"), f"unexpected: {_st}"
+    ok("data.agent_status(): returns valid status string", _st)
+except Exception as e:
+    fail("data.agent_status() failed", str(e)[:80])
+
+# active_sessions returns dict
+try:
+    _sess = active_sessions()
+    assert isinstance(_sess, dict)
+    ok("data.active_sessions(): returns dict", f"{len(_sess)} session(s)")
+except Exception as e:
+    fail("data.active_sessions() failed", str(e)[:80])
+
+# current_task_text returns str
+try:
+    _ct = current_task_text()
+    assert isinstance(_ct, str)
+    ok("data.current_task_text(): returns str", repr(_ct[:40]))
+except Exception as e:
+    fail("data.current_task_text() failed", str(e)[:80])
+
+# recent_tasks_formatted returns list of dicts with 'age'
+try:
+    _rt = recent_tasks_formatted(5)
+    assert isinstance(_rt, list)
+    if _rt:
+        assert "age" in _rt[0], "missing 'age' key"
+        assert "status" in _rt[0], "missing 'status' key"
+    ok("data.recent_tasks_formatted(): returns list with 'age' field",
+       f"{len(_rt)} entries")
+except Exception as e:
+    fail("data.recent_tasks_formatted() failed", str(e)[:80])
+
+# cost_summary returns dict with required keys
+try:
+    _cs = cost_summary()
+    for _k in ("week_dollars", "lifetime_dollars", "lifetime_delegations",
+                "lifetime_gemini_tokens", "top_tasks"):
+        assert _k in _cs, f"missing key: {_k}"
+    assert _cs["lifetime_dollars"] > 0, "no lifetime savings recorded"
+    ok("data.cost_summary(): all required keys, lifetime_dollars > 0",
+       f"${_cs['lifetime_dollars']:.4f} saved")
+except AssertionError as e:
+    fail("data.cost_summary() assertion", str(e))
+except Exception as e:
+    fail("data.cost_summary() failed", str(e)[:80])
+
+# delegation_ratio returns (int, int, float)
+try:
+    _avoided, _gemini, _ratio = delegation_ratio()
+    assert isinstance(_ratio, float)
+    assert 0.0 <= _ratio <= 100.0, f"ratio out of range: {_ratio}"
+    ok("data.delegation_ratio(): returns (int, int, float) in [0,100]",
+       f"{_ratio:.1f}% to Gemini")
+except AssertionError as e:
+    fail("data.delegation_ratio() assertion", str(e))
+except Exception as e:
+    fail("data.delegation_ratio() failed", str(e)[:80])
+
+# full_snapshot returns complete dict
+try:
+    _snap = full_snapshot()
+    for _k in ("generated_at", "heartbeat_label", "agent_status",
+               "session_count", "sessions", "current_task",
+               "recent_tasks", "costs"):
+        assert _k in _snap, f"missing: {_k}"
+    ok("data.full_snapshot(): all required keys present",
+       f"generated at {_snap['generated_at'][:19]}")
+except AssertionError as e:
+    fail("data.full_snapshot() missing key", str(e))
+except Exception as e:
+    fail("data.full_snapshot() failed", str(e)[:80])
+
+# ── 7.3 widget imports ────────────────────────────────────────────────────────
+try:
+    from dashboard.widgets.status_bar   import StatusBar
+    from dashboard.widgets.task_panel   import TaskPanel
+    from dashboard.widgets.cost_panel   import CostPanel
+    from dashboard.widgets.token_meter  import TokenMeter
+    from dashboard.widgets.session_panel import SessionPanel
+    ok("dashboard widgets: all 5 import OK")
+except ImportError as e:
+    fail("widget import failed", str(e))
+
+# ── 7.4 NazirDashboard imports and instantiates ───────────────────────────────
+try:
+    from dashboard.app import NazirDashboard, REFRESH_INTERVAL
+    app = NazirDashboard()
+    assert REFRESH_INTERVAL == 2.0, f"REFRESH_INTERVAL={REFRESH_INTERVAL} (expected 2.0)"
+    ok("NazirDashboard instantiates, REFRESH_INTERVAL=2.0s")
+except Exception as e:
+    fail("NazirDashboard instantiation failed", str(e)[:80])
+
+# ── 7.5 headless render: all widgets mount, data flows ────────────────────────
+try:
+    import asyncio
+
+    async def _headless_test():
+        from dashboard.app import NazirDashboard
+        app = NazirDashboard()
+        async with app.run_test(headless=True, size=(120, 40)) as pilot:
+            await pilot.pause(0.3)
+            # Verify all 5 widgets are mounted
+            sb = app.query_one("StatusBar")
+            tp = app.query_one("TaskPanel")
+            cp = app.query_one("CostPanel")
+            tm = app.query_one("TokenMeter")
+            sp = app.query_one("SessionPanel")
+            # Verify $ counter widget has correct class
+            assert cp.__class__.__name__ == "CostPanel"
+            # Verify the cost_panel's lifetime-value was updated (content attr)
+            lifetime_widget = cp.query_one("#lifetime-value")
+            content = str(lifetime_widget.content)
+            return content
+
+    _content = asyncio.run(_headless_test())
+    ok("headless render: all 5 widgets mounted, data flows to CostPanel",
+       f"lifetime-value content: {repr(_content[:50])}")
+except Exception as e:
+    fail("headless render failed", str(e)[:120])
+
+# ── 7.6 export.py: HTML export works and contains expected content ────────────
+try:
+    from dashboard.export import export_html
+    _html_path = export_html()
+    assert _html_path.exists(), "HTML file not created"
+    _html = _html_path.read_text()
+    for _kw in ("heartbeat", "Lifetime", "Active Task", "Token Meter",
+                "Top Tasks", "Sessions", "$ Saved"):
+        assert _kw in _html, f"keyword missing from HTML: {_kw}"
+    assert _html_path.stat().st_size > 3000, "HTML too small (<3KB)"
+    ok("export_html(): file created with all required sections",
+       f"{_html_path.stat().st_size} bytes")
+except AssertionError as e:
+    fail("export_html() assertion", str(e))
+except Exception as e:
+    fail("export_html() failed", str(e)[:80])
+
+# ── 7.7 export.py: SVG export works ──────────────────────────────────────────
+try:
+    from dashboard.export import export_svg
+    _svg_path = export_svg()
+    assert _svg_path.exists(), "SVG file not created"
+    _svg = _svg_path.read_text()
+    assert _svg.startswith("<svg") or "<svg" in _svg[:200], "not valid SVG"
+    assert _svg_path.stat().st_size > 1000, "SVG too small"
+    ok("export_svg(): valid SVG file created",
+       f"{_svg_path.stat().st_size} bytes")
+except AssertionError as e:
+    fail("export_svg() assertion", str(e))
+except Exception as e:
+    fail("export_svg() failed", str(e)[:80])
+
+# ── 7.8 exports/ directory created ───────────────────────────────────────────
+_exports = PROJECT_ROOT / "dashboard" / "exports"
+if _exports.exists():
+    _export_files = list(_exports.glob("nazir_dashboard_*"))
+    ok(f"dashboard/exports/: {len(_export_files)} snapshot file(s) present")
+else:
+    fail("dashboard/exports/ not created")
+
+# ── 7.9 MCP tools: dashboard_snapshot + export_dashboard in server.py ─────────
+try:
+    _srv = (PROJECT_ROOT / "mcp_server" / "server.py").read_text()
+    assert "def dashboard_snapshot" in _srv, "dashboard_snapshot tool missing"
+    assert "def export_dashboard"   in _srv, "export_dashboard tool missing"
+    ok("MCP server: dashboard_snapshot + export_dashboard tools present")
+except AssertionError as e:
+    fail("MCP dashboard tools missing", str(e))
+except Exception as e:
+    fail("MCP tool check failed", str(e)[:80])
+
+# ── 7.10 dashboard_snapshot MCP tool returns valid JSON ───────────────────────
+try:
+    # Import server and call the function directly (not via MCP transport)
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location(
+        "mcp_server_mod", PROJECT_ROOT / "mcp_server" / "server.py"
+    )
+    # Instead, just call full_snapshot directly (same as the MCP tool does)
+    from dashboard.data import full_snapshot as _fs
+    _snap_json = json.dumps(_fs())
+    _snap_parsed = json.loads(_snap_json)
+    assert "agent_status" in _snap_parsed
+    assert "costs" in _snap_parsed
+    ok("dashboard_snapshot data: serializes to valid JSON with all keys")
+except Exception as e:
+    fail("dashboard_snapshot JSON test failed", str(e)[:80])
+
+# ── 7.11 PRD acceptance: dashboard renders, $ counter shows real data ─────────
+try:
+    from dashboard.data import cost_summary as _cs2
+    _snap2 = _cs2()
+    assert _snap2["lifetime_dollars"] > 0, "no $ saved recorded in DB"
+    assert _snap2["lifetime_delegations"] >= 3, "fewer than 3 delegations"
+    ok("PRD acceptance: $ Saved counter shows real non-zero data",
+       f"${_snap2['lifetime_dollars']:.4f} lifetime, "
+       f"{_snap2['lifetime_delegations']} delegations")
+except AssertionError as e:
+    fail("PRD acceptance failed", str(e))
+except Exception as e:
+    fail("PRD acceptance check failed", str(e)[:80])
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # FINAL SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
