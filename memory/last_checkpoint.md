@@ -1,25 +1,53 @@
 # Nazir Context Checkpoint
-Generated: 2026-05-30T14:00:00Z
+Generated: 2026-05-30T15:34:18.424534
 
 ## Current Task
-IDLE — no pending work.
+RECOVERY MODE — the heartbeat daemon restarted you.
+
+1. Read memory/last_checkpoint.md for what you were doing.
+2. Read CLAUDE.md for project context.
+3. Resume the pending task from the checkpoint.
+
+--- Last checkpoint ---
+# Nazir Context Checkpoint
+Generated: 2026-05-30T15:29:07.681578
+
+## Current Task
+DONE
 
 ## Completed Steps
-- Phase 1–6 all committed and passing (106/106 tests).
-- Memory drift from repeated daemon restarts committed (f54a0e5).
+(none)
 
 ## Pending (resume here)
-(none — await next user task)
+(none)
 
 ## Key Decisions Made
-- Heartbeat daemon looped 3x on empty task; working tree cleaned up.
+- (auto-saved by PreCompact/Stop hook)
 
 ## Files Modified This Session
-- memory/last_checkpoint.md (this file)
+(none)
 
 ## Blockers / Issues
-- Heartbeat daemon fires recovery mode even when task is DONE.
-  Consider guarding the restart trigger: only restart if task status != "DONE".
+(none)
 
 ## Active Gemini CLI Sessions
-(none — old UUIDs stale after multiple restarts)
+- p5-restore-test: uuid-restore-1234
+
+## Completed Steps
+(none)
+
+## Pending (resume here)
+(none)
+
+## Key Decisions Made
+- (auto-saved by PreCompact/Stop hook)
+
+## Files Modified This Session
+(none)
+
+## Blockers / Issues
+(none)
+
+## Active Gemini CLI Sessions
+- p5-restore-test: uuid-restore-1234
+- warmup: bfd7dd1d-c23c-4658-af83-25df7f5f89c3
