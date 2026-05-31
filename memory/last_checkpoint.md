@@ -1,5 +1,5 @@
 # Nazir Context Checkpoint
-Generated: 2026-05-31T18:00:00.000000
+Generated: 2026-05-31T18:10:00.000000
 
 ## Current Task
 IDLE — awaiting next task from user.
@@ -13,10 +13,11 @@ Phase 8 complete (ba882f3). 156/156 tests passing.
 (none)
 
 ## Key Decisions Made
-- 2026-05-31: Reset checkpoint to break infinite RECOVERY MODE restart loop.
+- Broke infinite restart loop by resetting current_task.md and last_checkpoint.md to clean IDLE state.
 
 ## Files Modified This Session
-(none)
+- memory/current_task.md (reset to IDLE)
+- memory/last_checkpoint.md (reset to IDLE)
 
 ## Blockers / Issues
 (none)
