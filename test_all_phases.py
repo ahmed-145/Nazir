@@ -1685,6 +1685,143 @@ except Exception as e:
     fail("PRD acceptance failed", str(e)[:80])
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 9 — First Real Mission
+# ═══════════════════════════════════════════════════════════════════════════════
+header("Phase 9 — First Real Mission")
+
+# ── 9.1 Mission doc exists with required sections ─────────────────────────────
+_mission_doc = PROJECT_ROOT / "docs" / "mission-01.md"
+try:
+    assert _mission_doc.exists(), "docs/mission-01.md not found"
+    _doc = _mission_doc.read_text()
+    for _section in ("Task", "Acceptance Criteria", "What Nazir Did",
+                     "Human Assist Required", "Final Results", "Failure Log",
+                     "Verdict", "Git History"):
+        assert _section in _doc, f"section missing: {_section}"
+    ok("docs/mission-01.md exists with all required sections",
+       f"{_mission_doc.stat().st_size} bytes")
+except AssertionError as e:
+    fail("mission-01.md", str(e))
+except Exception as e:
+    fail("mission-01.md check failed", str(e)[:80])
+
+# ── 9.2 tests/mission_01_test.py exists ───────────────────────────────────────
+_m01 = PROJECT_ROOT / "tests" / "mission_01_test.py"
+if _m01.exists() and _m01.stat().st_size > 500:
+    ok("tests/mission_01_test.py exists", f"{_m01.stat().st_size} bytes")
+else:
+    fail("tests/mission_01_test.py missing or too small")
+
+# ── 9.3 The feature works: safe_run_command has dry_run parameter ─────────────
+try:
+    from mcp_server.tools.shell import safe_run_command
+    import inspect as _inspect
+    _sig = _inspect.signature(safe_run_command)
+    assert "dry_run" in _sig.parameters, \
+        f"dry_run not in signature: {list(_sig.parameters)}"
+    _default = _sig.parameters["dry_run"].default
+    assert _default is False, f"default should be False, got {repr(_default)}"
+    ok("safe_run_command: dry_run parameter exists with default=False",
+       str(list(_sig.parameters)))
+except AssertionError as e:
+    fail("safe_run_command signature", str(e))
+except Exception as e:
+    fail("safe_run_command import failed", str(e)[:80])
+
+# ── 9.4 dry_run=True: returns prefix, does not execute ────────────────────────
+try:
+    import os as _os
+    _sentinel = "/tmp/nazir_dryrun_sentinel_phase9"
+    if _os.path.exists(_sentinel): _os.unlink(_sentinel)
+    _out = safe_run_command(f"touch {_sentinel}", dry_run=True)
+    assert "DRY_RUN" in _out, f"missing DRY_RUN prefix: {repr(_out)}"
+    assert not _os.path.exists(_sentinel), "command was executed — sentinel file created!"
+    assert f"touch {_sentinel}" in _out, "command text missing from dry_run output"
+    ok("safe_run_command dry_run=True: DRY_RUN prefix, sentinel NOT created",
+       repr(_out[:60]))
+except AssertionError as e:
+    fail("dry_run=True behavior", str(e))
+except Exception as e:
+    fail("dry_run=True test failed", str(e)[:80])
+
+# ── 9.5 dry_run=True: blocklist still enforced ────────────────────────────────
+try:
+    try:
+        safe_run_command("rm -rf /", dry_run=True)
+        fail("blocklist not enforced in dry_run mode")
+    except PermissionError:
+        ok("dry_run=True: blocklist enforced (rm -rf still blocked)")
+except Exception as e:
+    fail("blocklist enforcement check failed", str(e)[:80])
+
+# ── 9.6 dry_run=False: backward compatible ────────────────────────────────────
+try:
+    _out2 = safe_run_command("echo PHASE9_OK", dry_run=False)
+    assert "PHASE9_OK" in _out2
+    _out3 = safe_run_command("echo COMPAT_OK")   # no dry_run arg
+    assert "COMPAT_OK" in _out3
+    ok("safe_run_command: dry_run=False and default both execute normally")
+except Exception as e:
+    fail("backward compat failed", str(e)[:80])
+
+# ── 9.7 MCP run_command tool has dry_run parameter ────────────────────────────
+try:
+    _srv = (PROJECT_ROOT / "mcp_server" / "server.py").read_text()
+    assert "dry_run: bool = False" in _srv or "dry_run=False" in _srv, \
+        "dry_run not in run_command MCP tool"
+    ok("MCP run_command tool: dry_run parameter present in server.py")
+except AssertionError as e:
+    fail("MCP run_command dry_run", str(e))
+except Exception as e:
+    fail("server.py check failed", str(e)[:80])
+
+# ── 9.8 mission_01_test.py passes 7/7 ────────────────────────────────────────
+try:
+    import subprocess as _sp
+    _r = _sp.run(
+        ["python3", str(PROJECT_ROOT / "tests" / "mission_01_test.py")],
+        capture_output=True, text=True, timeout=30,
+        cwd=str(PROJECT_ROOT),
+    )
+    assert _r.returncode == 0, f"mission test failed:\n{_r.stdout[-500:]}"
+    assert "7 passed  0 failed" in _r.stdout
+    ok("tests/mission_01_test.py: 7/7 pass")
+except AssertionError as e:
+    fail("mission_01_test.py not fully passing", str(e)[:200])
+except Exception as e:
+    fail("mission_01_test.py run failed", str(e)[:80])
+
+# ── 9.9 Metrics: mission added delegations and $ saved ────────────────────────
+try:
+    from orchestrator.metrics import cost_report as _cr9
+    _rep9 = _cr9("all")
+    assert _rep9["delegations"] >= 200, \
+        f"expected >= 200 delegations, got {_rep9['delegations']}"
+    assert _rep9["dollars_saved"] > 5.0, \
+        f"expected > $5.00 saved, got ${_rep9['dollars_saved']:.4f}"
+    ok("metrics: mission delegations recorded, cumulative savings real",
+       f"{_rep9['delegations']} delegations, ${_rep9['dollars_saved']:.4f} saved")
+except AssertionError as e:
+    fail("metrics assertion", str(e))
+except Exception as e:
+    fail("metrics check failed", str(e)[:80])
+
+# ── 9.10 Failure log is honest: mission doc acknowledges human assist ─────────
+try:
+    _doc2 = (PROJECT_ROOT / "docs" / "mission-01.md").read_text()
+    assert "Human Assist Required" in _doc2 or "human" in _doc2.lower()
+    assert "Failure Log" in _doc2
+    assert "test spec" in _doc2.lower() or "test specification" in _doc2.lower() \
+        or "assertion" in _doc2.lower()
+    ok("failure log: mission doc honestly documents what needed human help")
+except AssertionError as e:
+    fail("failure log not honest enough", str(e))
+except Exception as e:
+    fail("failure log check failed", str(e)[:80])
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # FINAL SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
