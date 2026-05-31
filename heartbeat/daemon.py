@@ -39,13 +39,14 @@ MAX_FAILURES = 3        # strikes before pausing
 def log(msg: str) -> None:
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {msg}"
-    print(line, flush=True)
+    # Write to file directly (not stdout) — avoids double-write when systemd
+    # also redirects stdout to the same file via StandardOutput=append.
     try:
         LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(LOG_FILE, "a") as f:
             f.write(line + "\n")
     except Exception:
-        pass
+        print(line, flush=True)  # fallback if file write fails
 
 
 def heartbeat_age() -> float:

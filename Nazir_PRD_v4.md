@@ -811,7 +811,7 @@ The Anthropic Claude for Open Source grant requires 5,000+ GitHub stars. Nazir c
 | **7** | **Dashboard** | ✅ | 30/30 tests pass — Textual TUI, data layer, 5 widgets, headless render, SVG+HTML export, 2 MCP tools |
 | **8** | **Subagents** | ✅ | 20/20 tests pass — 4 roles, DI orchestrator, pipeline logic (retry/limit/reject), MCP tools |
 | **9** | **First real mission** | ✅ | dry_run flag shipped; Gemini correct first try; test spec bug documented; 10/10 tests pass |
-| **10** | **Showcase & polish** | ⬜ | CI green, README lands in 90s |
+| **10** | **Showcase & polish** | ✅ | 11/11 tests pass — README, CI, docs, tests/, remote fixed, heartbeat loop killed |
 
 ---
 

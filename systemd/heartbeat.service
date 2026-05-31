@@ -9,8 +9,8 @@ ExecStart=/usr/bin/python3 %h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 Restart=always
 RestartSec=5
 EnvironmentFile=%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/.env
-StandardOutput=append:%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/logs/heartbeat.log
-StandardError=append:%h/Documents/NEEDS/Personaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Nazir/logs/heartbeat.log
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=default.target

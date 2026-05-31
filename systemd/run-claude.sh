@@ -20,15 +20,13 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [run-claude] $*" | tee -a logs/agen
 
 log "Task-loop wrapper started."
 
-# Seed Gemini session (warm up)
+# Restore Gemini session UUIDs from disk (no API call — just load saved sessions)
 python3 -c "
 import sys, os; sys.path.insert(0,'$PROJECT_ROOT'); os.environ['NAZIR_PROJECT_ROOT']='$PROJECT_ROOT'
-from orchestrator.gemini_runner import run_gemini, save_sessions, load_sessions
+from orchestrator.gemini_runner import load_sessions
 from pathlib import Path
 load_sessions(Path('memory/gemini_sessions.json'))
-run_gemini('hi', task_name='warmup')
-save_sessions(Path('memory/gemini_sessions.json'))
-" 2>&1 | tee -a logs/agent.log || log "Gemini seed failed (non-fatal)"
+" 2>&1 | tee -a logs/agent.log || log "Session restore failed (non-fatal)"
 
 TASK_FILE="$PROJECT_ROOT/memory/current_task.md"
 

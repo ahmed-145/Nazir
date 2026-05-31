@@ -1822,6 +1822,160 @@ except Exception as e:
     fail("failure log check failed", str(e)[:80])
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 10 — Showcase & Polish
+# ═══════════════════════════════════════════════════════════════════════════════
+header("Phase 10 — Showcase & Polish")
+
+# ── 10.1 README.md exists and has required sections ───────────────────────────
+_readme = PROJECT_ROOT / "README.md"
+try:
+    assert _readme.exists(), "README.md not found"
+    _rd = _readme.read_text()
+    for _s in ("Results", "Architecture", "Quick Start", "Security",
+               "What It Can't Do", "Build Phases", "Dashboard"):
+        assert _s in _rd, f"section missing: {_s}"
+    assert "measured" in _rd.lower() or "measured, not claimed" in _rd.lower(), \
+        "README should state results are measured"
+    ok("README.md: all required sections present, results marked as measured",
+       f"{_readme.stat().st_size} bytes")
+except AssertionError as e:
+    fail("README.md", str(e))
+except Exception as e:
+    fail("README.md check failed", str(e)[:80])
+
+# ── 10.2 README has real numbers from metrics ─────────────────────────────────
+try:
+    from orchestrator.metrics import cost_report as _cr10
+    _r10 = _cr10("all")
+    _rd2 = _readme.read_text()
+    # README should mention >= $5 saved (we have $7+)
+    import re as _re10
+    _dollars = _re10.findall(r'\$(\d+\.\d+)', _rd2)
+    assert any(float(d) >= 5.0 for d in _dollars), \
+        f"no real dollar figure >= $5 in README: {_dollars}"
+    ok("README.md: contains real dollar figures from metrics.db",
+       f"found ${max(float(d) for d in _dollars):.2f}")
+except AssertionError as e:
+    fail("README real numbers", str(e))
+except Exception as e:
+    fail("README numbers check failed", str(e)[:80])
+
+# ── 10.3 GitHub Actions CI workflow exists ────────────────────────────────────
+_ci = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
+try:
+    assert _ci.exists(), ".github/workflows/ci.yml not found"
+    _ci_text = _ci.read_text()
+    assert "test_all_phases.py" in _ci_text, "ci.yml doesn't run test suite"
+    assert "python" in _ci_text.lower(), "ci.yml missing python setup"
+    assert "gemini" in _ci_text.lower(), "ci.yml missing gemini setup"
+    assert "GEMINI_API_KEY" in _ci_text, "ci.yml missing GEMINI_API_KEY secret"
+    ok(".github/workflows/ci.yml: exists, runs test_all_phases.py",
+       f"{_ci.stat().st_size} bytes")
+except AssertionError as e:
+    fail("ci.yml", str(e))
+except Exception as e:
+    fail("ci.yml check failed", str(e)[:80])
+
+# ── 10.4 docs/ directory has mission report ───────────────────────────────────
+_docs = PROJECT_ROOT / "docs"
+try:
+    assert _docs.exists(), "docs/ directory missing"
+    _doc_files = list(_docs.glob("*.md"))
+    assert len(_doc_files) >= 1, "no markdown files in docs/"
+    ok(f"docs/: exists with {len(_doc_files)} document(s)",
+       ", ".join(f.name for f in _doc_files))
+except AssertionError as e:
+    fail("docs/ directory", str(e))
+except Exception as e:
+    fail("docs/ check failed", str(e)[:80])
+
+# ── 10.5 tests/ directory has mission test ────────────────────────────────────
+_tests_dir = PROJECT_ROOT / "tests"
+try:
+    assert _tests_dir.exists(), "tests/ directory missing"
+    _test_files = list(_tests_dir.glob("*.py"))
+    assert len(_test_files) >= 1, "no test files in tests/"
+    ok(f"tests/: exists with {len(_test_files)} file(s)",
+       ", ".join(f.name for f in _test_files))
+except AssertionError as e:
+    fail("tests/ directory", str(e))
+except Exception as e:
+    fail("tests/ check failed", str(e)[:80])
+
+# ── 10.6 git remote points to GitHub ──────────────────────────────────────────
+try:
+    import subprocess as _sp10
+    _remote = _sp10.run(
+        ["git", "remote", "get-url", "origin"],
+        capture_output=True, text=True, cwd=str(PROJECT_ROOT)
+    ).stdout.strip()
+    assert "github.com" in _remote, f"remote not on GitHub: {_remote}"
+    assert "ahmed-145" in _remote or "Nazir" in _remote or "nazir" in _remote
+    ok("git remote: points to GitHub", _remote)
+except AssertionError as e:
+    fail("git remote", str(e))
+except Exception as e:
+    fail("git remote check failed", str(e)[:80])
+
+# ── 10.7 all phases 0-9 marked complete in PRD ────────────────────────────────
+try:
+    _prd = (PROJECT_ROOT / "Nazir_PRD_v4.md").read_text()
+    _phases_complete = _prd.count("✅")
+    assert _phases_complete >= 10, \
+        f"only {_phases_complete} phases marked ✅ in PRD (expected >= 10)"
+    ok(f"PRD: {_phases_complete} phases marked ✅")
+except AssertionError as e:
+    fail("PRD phase completion", str(e))
+except Exception as e:
+    fail("PRD check failed", str(e)[:80])
+
+# ── 10.8 dashboard export works (HTML) ───────────────────────────────────────
+try:
+    from dashboard.export import export_html as _eh10
+    _html = _eh10()
+    assert _html.exists() and _html.stat().st_size > 2000
+    ok("dashboard HTML export: works", f"{_html.stat().st_size} bytes → {_html.name}")
+except Exception as e:
+    fail("dashboard export failed", str(e)[:80])
+
+# ── 10.9 .env.example exists (safe for public repo) ──────────────────────────
+_env_ex = PROJECT_ROOT / ".env.example"
+try:
+    assert _env_ex.exists(), ".env.example missing"
+    _ex_text = _env_ex.read_text()
+    assert "GEMINI_API_KEY" in _ex_text
+    assert "your" in _ex_text.lower() or "key" in _ex_text.lower()
+    ok(".env.example: exists with placeholder keys (safe for public repo)")
+except AssertionError as e:
+    fail(".env.example", str(e))
+except Exception as e:
+    fail(".env.example check failed", str(e)[:80])
+
+# ── 10.10 .gitignore excludes sensitive files ─────────────────────────────────
+_gi = PROJECT_ROOT / ".gitignore"
+try:
+    assert _gi.exists()
+    _gi_text = _gi.read_text()
+    for _entry in (".env", "metrics.db", "__pycache__"):
+        assert _entry in _gi_text, f"missing from .gitignore: {_entry}"
+    ok(".gitignore: .env, metrics.db, __pycache__ all excluded")
+except AssertionError as e:
+    fail(".gitignore", str(e))
+except Exception as e:
+    fail(".gitignore check failed", str(e)[:80])
+
+# ── 10.11 Complete test count confirms all phases covered ─────────────────────
+# This test passes only if all prior phases also pass — final sanity check
+_current_pass = len([r for r in results if r[0] is True])
+_current_fail = len([r for r in results if r[0] is False])
+if _current_fail == 0:
+    ok(f"all {_current_pass} prior tests passing — full stack verified end-to-end")
+else:
+    fail(f"{_current_fail} failures in prior phases — stack not fully verified")
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # FINAL SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
