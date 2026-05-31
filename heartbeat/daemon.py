@@ -88,7 +88,13 @@ def run() -> None:
                 failures = 0
             continue
 
-        # Heartbeat stale
+        # Heartbeat stale — but don't restart if there's nothing to do
+        task_content = TASK_FILE.read_text().strip() if TASK_FILE.exists() else ""
+        idle_states = {"DONE", "IDLE", "PAUSE"}
+        if any(task_content.upper().startswith(s) for s in idle_states):
+            log(f"Stale heartbeat ({age:.0f}s) but task is idle ({task_content[:40]!r}). Skipping restart.")
+            continue
+
         failures += 1
         log(f"Stale heartbeat ({age:.0f}s old). Failure {failures}/{MAX_FAILURES}.")
 

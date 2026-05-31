@@ -8,12 +8,15 @@ from security.blocklist import check_command
 from mcp_server.config import PROJECT_ROOT, MAX_OUTPUT_BYTES
 
 
-def safe_run_command(cmd: str, cwd: str = None, timeout: int = 30) -> str:
+def safe_run_command(cmd: str, cwd: str = None, timeout: int = 30, dry_run: bool = False) -> str:
     """
     Run a shell command inside PROJECT_ROOT with blocklist + path checks.
     Returns combined stdout+stderr, truncated to MAX_OUTPUT_BYTES.
     """
     check_command(cmd)
+    if dry_run:
+        return f"DRY_RUN: would execute: {cmd}"
+
     resolved_cwd = str(validate_path(cwd)) if cwd else str(PROJECT_ROOT)
 
     result = subprocess.run(

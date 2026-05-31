@@ -35,13 +35,14 @@ mcp = FastMCP("nazir-tools")
 # ── Shell ─────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def run_command(cmd: str, cwd: str = None, timeout: int = 30) -> str:
+def run_command(cmd: str, cwd: str = None, timeout: int = 30, dry_run: bool = False) -> str:
     """
     Run a shell command inside PROJECT_ROOT.
     Blocked: rm -rf, mkfs, sudo, fork bombs, and other destructive patterns.
     cwd must be inside PROJECT_ROOT if provided.
+    dry_run: if True, validates the command but does not execute it.
     """
-    return safe_run_command(cmd, cwd, timeout)
+    return safe_run_command(cmd, cwd, timeout, dry_run)
 
 
 @mcp.tool()
