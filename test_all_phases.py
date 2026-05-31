@@ -1347,6 +1347,344 @@ except Exception as e:
     fail("PRD acceptance check failed", str(e)[:80])
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 8 — Specialized Subagents
+# ═══════════════════════════════════════════════════════════════════════════════
+header("Phase 8 — Specialized Subagents")
+
+# ── 8.1 Module imports ────────────────────────────────────────────────────────
+try:
+    from orchestrator.agents import (
+        AgentResult, PipelineResult, AgentError,
+        PlannerAgent, CoderAgent, TesterAgent, ReviewerAgent,
+        SubagentOrchestrator, run_agent, pipeline_summary,
+        _extract_json, DEFAULT_MAX_ITERATIONS, DEFAULT_TEST_COMMAND,
+    )
+    ok("orchestrator.agents: all symbols importable")
+except ImportError as e:
+    fail("orchestrator.agents import failed", str(e))
+
+# ── 8.2 agents.py file exists ─────────────────────────────────────────────────
+_agents_file = PROJECT_ROOT / "orchestrator" / "agents.py"
+if _agents_file.exists() and _agents_file.stat().st_size > 2000:
+    ok("orchestrator/agents.py exists", f"{_agents_file.stat().st_size} bytes")
+else:
+    fail("orchestrator/agents.py missing or too small")
+
+# ── 8.3 AgentResult dataclass ─────────────────────────────────────────────────
+try:
+    _r = AgentResult("planner", True, "output", {"key": "val"}, 100, "", 1.5)
+    assert _r.role == "planner"
+    assert _r.success is True
+    assert _r.tokens_used == 100
+    assert _r.duration_s == 1.5
+    assert _r.data == {"key": "val"}
+    # defaults
+    _r2 = AgentResult("tester", False, "fail output")
+    assert _r2.data == {}
+    assert _r2.error == ""
+    assert _r2.tokens_used == 0
+    ok("AgentResult dataclass: all fields + defaults correct")
+except AssertionError as e:
+    fail("AgentResult dataclass wrong", str(e))
+except Exception as e:
+    fail("AgentResult dataclass failed", str(e)[:80])
+
+# ── 8.4 PipelineResult dataclass ──────────────────────────────────────────────
+try:
+    _pr = PipelineResult(success=True, task="test task")
+    assert _pr.iterations == []
+    assert _pr.dollars_saved == 0.0
+    assert _pr.committed is False
+    assert _pr.commit_hash == ""
+    ok("PipelineResult dataclass: defaults correct")
+except Exception as e:
+    fail("PipelineResult dataclass failed", str(e)[:80])
+
+# ── 8.5 AgentError is a proper exception ──────────────────────────────────────
+try:
+    try:
+        raise AgentError("test error message")
+    except AgentError as e:
+        assert str(e) == "test error message"
+    ok("AgentError: raises and catches correctly")
+except Exception as e:
+    fail("AgentError exception failed", str(e)[:80])
+
+# ── 8.6 _extract_json: all cases ─────────────────────────────────────────────
+try:
+    # Bare JSON
+    d = _extract_json('{"steps": ["a", "b"]}')
+    assert d["steps"] == ["a", "b"], f"bare JSON failed: {d}"
+    # Markdown fence
+    d2 = _extract_json('```json\n{"decision": "APPROVED"}\n```')
+    assert d2.get("decision") == "APPROVED", f"fence failed: {d2}"
+    # Prose with embedded JSON
+    d3 = _extract_json('Here is the plan: {"steps": ["x"]} done.')
+    assert d3.get("steps") == ["x"], f"embedded failed: {d3}"
+    # No JSON → empty dict
+    d4 = _extract_json("no json here at all")
+    assert d4 == {}, f"no-json failed: {d4}"
+    ok("_extract_json: bare / fenced / embedded / none all handled")
+except AssertionError as e:
+    fail("_extract_json case failed", str(e))
+except Exception as e:
+    fail("_extract_json threw", str(e)[:80])
+
+# ── 8.7 DEFAULT_MAX_ITERATIONS and DEFAULT_TEST_COMMAND ──────────────────────
+try:
+    assert DEFAULT_MAX_ITERATIONS == 3, f"expected 3, got {DEFAULT_MAX_ITERATIONS}"
+    assert "test_all_phases.py" in DEFAULT_TEST_COMMAND
+    ok("constants: DEFAULT_MAX_ITERATIONS=3, DEFAULT_TEST_COMMAND references test_all_phases.py")
+except AssertionError as e:
+    fail("constants wrong", str(e))
+
+# ── 8.8 Agent classes instantiate ─────────────────────────────────────────────
+try:
+    _pl = PlannerAgent()
+    _co = CoderAgent()
+    _te = TesterAgent()
+    _re = ReviewerAgent()
+    assert hasattr(_pl, "run") and callable(_pl.run)
+    assert hasattr(_co, "run") and callable(_co.run)
+    assert hasattr(_te, "run") and callable(_te.run)
+    assert hasattr(_re, "run") and callable(_re.run)
+    assert hasattr(_te, "test_command")
+    ok("all 4 agent classes instantiate with .run() method")
+except Exception as e:
+    fail("agent class instantiation failed", str(e)[:80])
+
+# ── 8.9 TesterAgent: custom test_command ──────────────────────────────────────
+try:
+    _te2 = TesterAgent(test_command="echo CUSTOM_CMD_OK")
+    assert _te2.test_command == "echo CUSTOM_CMD_OK"
+    _result = _te2.run("dummy task")
+    assert _result.success, f"echo should succeed: {_result.error}"
+    assert "CUSTOM_CMD_OK" in _result.output
+    ok("TesterAgent: custom test_command works, runs and returns output")
+except Exception as e:
+    fail("TesterAgent custom command failed", str(e)[:80])
+
+# ── 8.10 TesterAgent: captures failure correctly ──────────────────────────────
+try:
+    _te3 = TesterAgent(test_command="exit 1")
+    _result3 = _te3.run("dummy")
+    assert not _result3.success, "should have failed"
+    assert _result3.data.get("returncode") == 1
+    ok("TesterAgent: failure (exit 1) detected correctly, returncode=1")
+except Exception as e:
+    fail("TesterAgent failure detection failed", str(e)[:80])
+
+# ── 8.11 SubagentOrchestrator: DI + happy path ────────────────────────────────
+try:
+    class _StubPlanner:
+        def run(self, task, context=None):
+            return AgentResult("planner", True, "plan",
+                               {"steps": ["s1"], "acceptance_criteria": [],
+                                "files_to_modify": [], "estimated_complexity": "low"},
+                               50, "", 0.1)
+
+    class _StubCoder:
+        def __init__(self): self.calls = 0
+        def run(self, task, context=None):
+            self.calls += 1
+            return AgentResult("coder", True, f"code call {self.calls}", {}, 200, "", 0.5)
+
+    class _StubTesterPass:
+        def __init__(self, test_command=None): pass
+        def run(self, task, context=None):
+            return AgentResult("tester", True, "100% pass",
+                               {"passed": True, "feedback": "", "returncode": 0}, 0, "", 0.1)
+
+    class _StubReviewer:
+        def run(self, task, context=None):
+            return AgentResult("reviewer", True, "APPROVED",
+                               {"decision": "APPROVED", "feedback": "ok", "issues": []},
+                               30, "", 0.2)
+
+    _orch = SubagentOrchestrator(
+        planner_cls=_StubPlanner, coder_cls=_StubCoder,
+        tester_cls=_StubTesterPass, reviewer_cls=_StubReviewer,
+    )
+    _pr = _orch.run_pipeline("stub happy path task", dry_run=True)
+    assert _pr.success, f"should succeed: {_pr.failure_reason}"
+    assert len(_pr.iterations) == 1
+    assert _pr.iterations[0][1].success is True
+    assert _pr.review.data["decision"] == "APPROVED"
+    assert _pr.committed is False   # dry_run
+    ok("SubagentOrchestrator: DI happy path → success in 1 iteration, dry_run")
+except AssertionError as e:
+    fail("orchestrator happy path assertion", str(e))
+except Exception as e:
+    fail("orchestrator happy path failed", str(e)[:80])
+
+# ── 8.12 Pipeline: retry on test failure, then succeed ────────────────────────
+try:
+    class _StubTesterPassOn2:
+        def __init__(self, test_command=None): self.calls = 0
+        def run(self, task, context=None):
+            self.calls += 1
+            success = self.calls >= 2
+            return AgentResult("tester", success, "out",
+                               {"passed": success, "feedback": "line 42" if not success else "", "returncode": 0 if success else 1},
+                               0, "" if success else "line 42", 0.1)
+
+    _orch2 = SubagentOrchestrator(
+        planner_cls=_StubPlanner, coder_cls=_StubCoder,
+        tester_cls=_StubTesterPassOn2, reviewer_cls=_StubReviewer,
+    )
+    _pr2 = _orch2.run_pipeline("retry task", dry_run=True)
+    assert _pr2.success
+    assert len(_pr2.iterations) == 2
+    assert _pr2.iterations[0][1].success is False
+    assert _pr2.iterations[1][1].success is True
+    ok("pipeline: retries once on failure, succeeds on 2nd iteration")
+except AssertionError as e:
+    fail("pipeline retry assertion", str(e))
+except Exception as e:
+    fail("pipeline retry failed", str(e)[:80])
+
+# ── 8.13 Pipeline: iteration limit respected ──────────────────────────────────
+try:
+    class _StubTesterAlwaysFail:
+        def __init__(self, test_command=None): pass
+        def run(self, task, context=None):
+            return AgentResult("tester", False, "FAIL",
+                               {"passed": False, "feedback": "always broken", "returncode": 1},
+                               0, "always broken", 0.1)
+
+    _orch3 = SubagentOrchestrator(
+        planner_cls=_StubPlanner, coder_cls=_StubCoder,
+        tester_cls=_StubTesterAlwaysFail, reviewer_cls=_StubReviewer,
+    )
+    _pr3 = _orch3.run_pipeline("always failing", dry_run=True, max_iterations=3)
+    assert not _pr3.success
+    assert len(_pr3.iterations) == 3
+    assert "tests still failing after 3 iterations" in _pr3.failure_reason
+    ok("pipeline: iteration limit enforced at max_iterations=3")
+except AssertionError as e:
+    fail("iteration limit assertion", str(e))
+except Exception as e:
+    fail("iteration limit test failed", str(e)[:80])
+
+# ── 8.14 Pipeline: review rejection stops pipeline ────────────────────────────
+try:
+    class _StubReviewerReject:
+        def run(self, task, context=None):
+            return AgentResult("reviewer", False, "REVISION_NEEDED",
+                               {"decision": "REVISION_NEEDED", "feedback": "missing tests", "issues": ["no tests"]},
+                               30, "missing tests", 0.2)
+
+    _orch4 = SubagentOrchestrator(
+        planner_cls=_StubPlanner, coder_cls=_StubCoder,
+        tester_cls=_StubTesterPass, reviewer_cls=_StubReviewerReject,
+    )
+    _pr4 = _orch4.run_pipeline("rejected task", dry_run=True)
+    assert not _pr4.success
+    assert "review rejected" in _pr4.failure_reason
+    assert "missing tests" in _pr4.failure_reason
+    ok("pipeline: review rejection stops pipeline with correct reason")
+except AssertionError as e:
+    fail("review rejection assertion", str(e))
+except Exception as e:
+    fail("review rejection test failed", str(e)[:80])
+
+# ── 8.15 pipeline_summary format ──────────────────────────────────────────────
+try:
+    _s = pipeline_summary(_pr)
+    assert "SUCCESS" in _s or "FAILED" in _s
+    assert "Iteration" in _s
+    assert "Review" in _s
+    assert "Duration" in _s
+    ok("pipeline_summary(): contains SUCCESS/FAILED, Iteration, Review, Duration")
+except AssertionError as e:
+    fail("pipeline_summary format", str(e))
+except Exception as e:
+    fail("pipeline_summary failed", str(e)[:80])
+
+# ── 8.16 run_agent() helper: validates role name ──────────────────────────────
+try:
+    from orchestrator.agents import AgentError as _AE, run_agent as _ra
+    try:
+        _ra("invalid_role", "task")
+        fail("run_agent: should raise AgentError for bad role")
+    except _AE as e:
+        assert "Unknown role" in str(e)
+        ok("run_agent(): raises AgentError for unknown role")
+except Exception as e:
+    fail("run_agent role validation failed", str(e)[:80])
+
+# ── 8.17 TesterAgent real run: actual test suite (short smoke) ────────────────
+try:
+    # Run a trivially fast command to prove TesterAgent works end-to-end
+    _te_real = TesterAgent(test_command="python3 -c \"print('SMOKE_OK'); exit(0)\"")
+    _res_real = _te_real.run("smoke test")
+    assert _res_real.success, f"smoke failed: {_res_real.error}"
+    assert "SMOKE_OK" in _res_real.output
+    ok("TesterAgent: real subprocess run, output captured correctly")
+except Exception as e:
+    fail("TesterAgent real run failed", str(e)[:80])
+
+# ── 8.18 SubagentOrchestrator: test_command override flows to TesterAgent ─────
+try:
+    class _RecordingTester:
+        recorded_cmd = None
+        def __init__(self, test_command=None):
+            _RecordingTester.recorded_cmd = test_command
+        def run(self, task, context=None):
+            return AgentResult("tester", True, "ok", {"passed": True, "feedback": "", "returncode": 0}, 0, "", 0.0)
+
+    _orch5 = SubagentOrchestrator(
+        planner_cls=_StubPlanner, coder_cls=_StubCoder,
+        tester_cls=_RecordingTester, reviewer_cls=_StubReviewer,
+        test_command="custom_test_cmd",
+    )
+    _pr5 = _orch5.run_pipeline("cmd flow test", dry_run=True)
+    assert _RecordingTester.recorded_cmd == "custom_test_cmd"
+    ok("SubagentOrchestrator: test_command override flows through to TesterAgent")
+except AssertionError as e:
+    fail("test_command flow assertion", str(e))
+except Exception as e:
+    fail("test_command flow failed", str(e)[:80])
+
+# ── 8.19 MCP tools present in server.py ──────────────────────────────────────
+try:
+    _srv = (PROJECT_ROOT / "mcp_server" / "server.py").read_text()
+    assert "def run_agent"    in _srv, "run_agent tool missing"
+    assert "def run_pipeline" in _srv, "run_pipeline tool missing"
+    ok("MCP server: run_agent + run_pipeline tools present")
+except AssertionError as e:
+    fail("MCP Phase 8 tools missing", str(e))
+except Exception as e:
+    fail("MCP server check failed", str(e)[:80])
+
+# ── 8.20 PRD acceptance: task described in PRD is executable (dry_run) ─────────
+# PRD test: "add a --dry-run flag to safe_run_command — confirm plan→code→test→review"
+# We verify the orchestrator CAN run the pipeline shape; Gemini/Claude live calls
+# are excluded from CI (they're slow + cost tokens) — tested manually in Phase 9.
+try:
+    _orch6 = SubagentOrchestrator(
+        planner_cls=_StubPlanner, coder_cls=_StubCoder,
+        tester_cls=_StubTesterPass, reviewer_cls=_StubReviewer,
+    )
+    _prd_result = _orch6.run_pipeline(
+        "add a --dry-run flag to safe_run_command",
+        dry_run=True,
+    )
+    assert _prd_result.success
+    assert _prd_result.plan is not None
+    assert len(_prd_result.iterations) >= 1
+    assert _prd_result.review is not None
+    assert _prd_result.committed is False
+    ok("PRD acceptance: plan→code→test→review pipeline shape executes end-to-end",
+       f"{len(_prd_result.iterations)} iteration(s), review={_prd_result.review.data.get('decision')}")
+except AssertionError as e:
+    fail("PRD acceptance assertion", str(e))
+except Exception as e:
+    fail("PRD acceptance failed", str(e)[:80])
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # FINAL SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════

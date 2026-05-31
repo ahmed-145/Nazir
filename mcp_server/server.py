@@ -315,5 +315,54 @@ def export_dashboard(format: str = "html") -> str:
     return f"Exported → {path}"
 
 
+# ── Subagents (Phase 8) ───────────────────────────────────────────────────────
+
+@mcp.tool()
+def run_agent(role: str, task: str, context_json: str = "{}") -> str:
+    """
+    Run a single named subagent role on a task.
+
+    role: "planner" | "coder" | "tester" | "reviewer"
+    task: description of what to do
+    context_json: optional JSON string with extra context (e.g. plan, feedback)
+
+    Returns the agent's output as text.
+    """
+    import json
+    from orchestrator.agents import run_agent as _run, AgentError
+    try:
+        ctx = json.loads(context_json) if context_json.strip() else {}
+        result = _run(role, task, ctx)
+        lines = [
+            f"Role: {result.role}",
+            f"Success: {result.success}",
+            f"Duration: {result.duration_s:.1f}s",
+            f"Output:\n{result.output[:2000]}",
+        ]
+        if result.error:
+            lines.append(f"Error: {result.error}")
+        return "\n".join(lines)
+    except AgentError as e:
+        return f"AgentError: {e}"
+
+
+@mcp.tool()
+def run_pipeline(task: str, dry_run: bool = True, max_iterations: int = 3) -> str:
+    """
+    Run the full Nazir subagent pipeline on a task:
+      plan → [code → test]* → review → commit
+
+    task: the task to implement (be specific and self-contained)
+    dry_run: if True (default), skips the final git commit — safe for testing
+    max_iterations: maximum code→test retry loops (default 3)
+
+    Returns a human-readable pipeline summary.
+    """
+    from orchestrator.agents import SubagentOrchestrator, pipeline_summary
+    orch = SubagentOrchestrator()
+    result = orch.run_pipeline(task, dry_run=dry_run, max_iterations=max_iterations)
+    return pipeline_summary(result)
+
+
 if __name__ == "__main__":
     mcp.run()
