@@ -1,0 +1,9 @@
+#!/bin/bash
+# Thin wrapper so AppArmor can scope the nazir-desktop-cmd profile
+# to DCM only, without sandboxing all node processes system-wide.
+#
+# Install: sudo cp security/dcm-node /usr/local/bin/dcm-node
+#          sudo chmod +x /usr/local/bin/dcm-node
+#
+# DCM in ~/.claude.json must use "command": "/usr/local/bin/dcm-node"
+exec /home/ahmeed/.local/bin/node "$@"
